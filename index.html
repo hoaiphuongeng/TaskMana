@@ -1946,21 +1946,29 @@ let highlightedStaff = {};
             const targetUser = userObj || currentUser;
             if (!token || !targetUser || !targetUser.id || typeof db === 'undefined' || !db) return;
 
-            const saveKey = `${targetUser.id}::${token}`;
-            const alreadyInUser =
-                targetUser.fcmToken === token &&
-                targetUser.fcmTokens &&
-                targetUser.fcmTokens[getDeviceIdForFcm()] &&
-                targetUser.fcmTokens[getDeviceIdForFcm()].token === token;
+            const deviceId = getDeviceIdForFcm();
+            const saveKey = `${targetUser.id}::${deviceId}::${token}`;
+            const localSavedKey = localStorage.getItem('tm_last_saved_fcm_key') || '';
 
-            if (alreadyInUser || _tmLastSavedTokenKey === saveKey) {
+            const existingDeviceEntry = targetUser.fcmTokens && targetUser.fcmTokens[deviceId];
+            const alreadySavedOnThisDevice = existingDeviceEntry && existingDeviceEntry.token === token;
+
+            // Nếu thiết bị này đã lưu đúng token này trên Firestore rồi thì DỪNG NGAY, không ghi lại
+            if (alreadySavedOnThisDevice) {
+                _tmLastSavedTokenKey = saveKey;
+                localStorage.setItem('tm_last_saved_fcm_key', saveKey);
                 return;
             }
+
+            // Chống ghi lặp liên tiếp trong cùng phiên nếu dữ liệu đang đồng bộ
+            if (_tmLastSavedTokenKey === saveKey && localSavedKey === saveKey && targetUser.fcmToken) {
+                return;
+            }
+
             if (_tmSavingTokenPromise) {
                 return _tmSavingTokenPromise;
             }
 
-            const deviceId = getDeviceIdForFcm();
             const ua = navigator.userAgent || '';
             const isIOS = /iPad|iPhone|iPod/.test(ua);
             const isAndroid = /Android/.test(ua);
@@ -1969,8 +1977,7 @@ let highlightedStaff = {};
 
             _tmSavingTokenPromise = (async () => {
                 try {
-                    await db.collection('users').doc(targetUser.id).set({
-                        fcmToken: token,
+                    const updatePayload = {
                         fcmTokens: {
                             [deviceId]: {
                                 token: token,
@@ -1978,13 +1985,29 @@ let highlightedStaff = {};
                                 userAgent: ua.slice(0, 140),
                                 updatedAt: nowTs
                             }
-                        },
-                        fcmUpdatedAt: nowTs
-                    }, { merge: true });
+                        }
+                    };
+
+                    // Chỉ cập nhật fcmToken gốc nếu user chưa có, hoặc chưa từng lưu token cho thiết bị này
+                    if (!targetUser.fcmToken || !existingDeviceEntry || existingDeviceEntry.token !== token) {
+                        updatePayload.fcmToken = token;
+                        updatePayload.fcmUpdatedAt = nowTs;
+                    }
+
+                    await db.collection('users').doc(targetUser.id).set(updatePayload, { merge: true });
+
                     _tmLastSavedTokenKey = saveKey;
+                    localStorage.setItem('tm_last_saved_fcm_key', saveKey);
+
                     if (currentUser && currentUser.id === targetUser.id) {
-                        currentUser.fcmToken = token;
-                        currentUser.fcmUpdatedAt = nowTs;
+                        currentUser.fcmTokens = {
+                            ...(currentUser.fcmTokens || {}),
+                            [deviceId]: updatePayload.fcmTokens[deviceId]
+                        };
+                        if (updatePayload.fcmToken) {
+                            currentUser.fcmToken = updatePayload.fcmToken;
+                            currentUser.fcmUpdatedAt = nowTs;
+                        }
                     }
                 } catch (err) {
                     console.warn('Lỗi lưu FCM token lên Firestore:', err.message || err);
