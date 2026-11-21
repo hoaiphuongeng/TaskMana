@@ -1933,7 +1933,7 @@ let highlightedStaff = {};
         // Cấu hình VAPID key (lấy từ Firebase Console -> Cloud Messaging -> Web Push certificates)
         // và URL webhook/Cloudflare Worker gửi FCM khi giao việc (nếu đã triển khai).
         const TM_DEFAULT_VAPID_KEY = 'BEo3SBRVj6vHqkGUebWrmpHW8ZL_v7OS6BVjFznaBQrhrUniBBA5WLdoZzWVMnwJ0NvaULBzmw4Njzs82CHWMXY';
-        const TM_DEFAULT_PUSH_WEBHOOK_URL = 'https://taskmana-fmc-push.hoaiphuong-eng.workers.dev/'; // Đổi lại đúng URL Worker bạn đã deploy
+        const TM_DEFAULT_PUSH_WEBHOOK_URL = 'https://taskmana-fmc-push.hoaiphuong-eng.workers.dev'; // Đổi lại đúng URL Worker bạn đã deploy
         const TM_FCM_CONFIG = {
             vapidKey: (localStorage.getItem('tm_fcm_vapid_key') || '').trim() || TM_DEFAULT_VAPID_KEY,
             pushWebhookUrl: (localStorage.getItem('tm_fcm_push_webhook_url') || '').trim() || TM_DEFAULT_PUSH_WEBHOOK_URL
