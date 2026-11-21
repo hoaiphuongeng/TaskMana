@@ -2631,11 +2631,11 @@ let highlightedStaff = {};
             try {
                 task.progress = newProgress;
                 task.status = newStatus;
-                await db.collection('tasks').doc(taskId).update({
+                await db.collection('tasks').doc(taskId).set({
                     progress: newProgress,
                     status: newStatus,
                     updatedAt: Date.now()
-                });
+                }, { merge: true });
 
                 const updaterName = currentUser ? (currentUser.nickname || currentUser.name) : 'Người dùng';
 await addLog(`Cập nhật tiến độ: ${taskTitle} (${newProgress}%)`);
@@ -3774,16 +3774,28 @@ let firestoreUnsubscribers = [];
 
             const unsubUsers = db.collection("users").onSnapshot({ includeMetadataChanges: true }, snapshot => {
                 const nextUsers = [];
-                snapshot.forEach(doc => nextUsers.push({ id: doc.id, ...doc.data() }));
+                snapshot.forEach(doc => {
+                    const data = doc.data() || {};
+                    nextUsers.push({
+                        ...data,
+                        id: doc.id,
+                        name: String(data.name || data.nickname || data.phone || doc.id),
+                        phone: data.phone ? String(data.phone) : '',
+                        role: data.role || 'USER',
+                        status: data.status || 'ACTIVE'
+                    });
+                });
 
                 if (nextUsers.length > 0) {
                     cloudUsers = nextUsers;
-                } else if (!snapshot.metadata.fromCache && cloudUsers.length === 0) {
+                } else if (!snapshot.metadata.fromCache) {
                     defaultUsers.forEach(u => {
-                        db.collection("users").doc(u.id).set(u).catch(err => {
+                        db.collection("users").doc(u.id).set(u, { merge: true }).catch(err => {
                             console.error("Không thể khởi tạo users mặc định trên Firestore:", err.message);
                         });
                     });
+                    cloudUsers = [...defaultUsers];
+                } else if (cloudUsers.length === 0) {
                     cloudUsers = [...defaultUsers];
                 }
 
@@ -5724,15 +5736,22 @@ return;
             renderTasks();
         }
 
+        function getAvailableUsersForAssign() {
+            const source = (Array.isArray(cloudUsers) && cloudUsers.length > 0) ? cloudUsers : defaultUsers;
+            return source.filter(u => u && u.id && u.status !== 'INACTIVE');
+        }
+
         function showAssigneeDropdown() {
-            renderAssigneeDropdownOptions(cloudUsers);
+            renderAssigneeDropdownOptions(getAvailableUsersForAssign());
+            const dropdown = document.getElementById('assignee-dropdown-list');
+            if (dropdown) dropdown.classList.remove('hidden');
         }
 
         function toggleAssigneeDropdown() {
             const dropdown = document.getElementById('assignee-dropdown-list');
             if (!dropdown) return;
             if (dropdown.classList.contains('hidden')) {
-                renderAssigneeDropdownOptions(cloudUsers);
+                renderAssigneeDropdownOptions(getAvailableUsersForAssign());
                 dropdown.classList.remove('hidden');
             } else {
                 dropdown.classList.add('hidden');
@@ -5740,12 +5759,19 @@ return;
         }
 
         function handleAssigneeSearchInput(keyword) {
-            const query = keyword.toLowerCase().trim();
-            const filtered = cloudUsers.filter(u => 
-                u.name.toLowerCase().includes(query) || 
-                (u.phone && u.phone.toLowerCase().includes(query)) ||
-                (u.nickname && u.nickname.toLowerCase().includes(query))
-            );
+            const query = String(keyword || '').toLowerCase().trim();
+            const hiddenInput = document.getElementById('task-assignee-input');
+            const usersPool = getAvailableUsersForAssign();
+            const filtered = usersPool.filter(u => {
+                const name = String(u.name || '').toLowerCase();
+                const phone = String(u.phone || '').toLowerCase();
+                const nickname = String(u.nickname || '').toLowerCase();
+                return name.includes(query) || phone.includes(query) || nickname.includes(query);
+            });
+            if (hiddenInput && !query) {
+                hiddenInput.value = '';
+                selectedAssigneeId = '';
+            }
             renderAssigneeDropdownOptions(filtered);
             const dropdown = document.getElementById('assignee-dropdown-list');
             if (dropdown) dropdown.classList.remove('hidden');
@@ -5754,24 +5780,29 @@ return;
         function renderAssigneeDropdownOptions(usersList) {
             const dropdown = document.getElementById('assignee-dropdown-list');
             if (!dropdown) return;
-            if (usersList.length === 0) {
+            if (!Array.isArray(usersList) || usersList.length === 0) {
                 dropdown.innerHTML = `<div class="p-3 text-xs text-slate-500 text-center font-bold">Không tìm thấy nhân sự</div>`;
                 return;
             }
             let html = '';
             usersList.forEach(u => {
+                const safeName = String(u.name || u.phone || u.id || 'Không tên');
+                const safePhone = String(u.phone || '');
+                const safeIdAttr = String(u.id).replace(/'/g, "\\'");
+                const safeNameAttr = safeName.replace(/'/g, "\\'");
+                const safePhoneAttr = safePhone.replace(/'/g, "\\'");
                 html += `
-                    <div onclick="selectAssigneeItem('${u.id}', '${escapeHtml(u.name)}', '${u.phone || ''}')" class="px-4 py-2.5 hover:bg-indigo-100/70 cursor-pointer flex items-center justify-between text-xs border-b border-slate-200 last:border-none">
+                    <div onclick="selectAssigneeItem('${safeIdAttr}', '${safeNameAttr}', '${safePhoneAttr}')" class="px-4 py-2.5 hover:bg-indigo-100/70 cursor-pointer flex items-center justify-between text-xs border-b border-slate-200 last:border-none">
                         <div class="flex items-center space-x-2">
                             <div class="w-6 h-6 rounded-full bg-indigo-200 text-indigo-800 font-bold flex items-center justify-center text-[10px]">
-                                ${u.name.charAt(0).toUpperCase()}
+                                ${escapeHtml(safeName.charAt(0).toUpperCase())}
                             </div>
                             <div>
-                                <span class="font-bold text-slate-950 block">${escapeHtml(u.name)}</span>
-                                <span class="text-[10px] font-semibold text-slate-600">SĐT: ${escapeHtml(u.phone || '--')}</span>
+                                <span class="font-bold text-slate-950 block">${escapeHtml(safeName)}</span>
+                                <span class="text-[10px] font-semibold text-slate-600">SĐT: ${escapeHtml(safePhone || '--')}</span>
                             </div>
                         </div>
-                        <span class="text-[10px] font-extrabold text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-md">${u.role || 'USER'}</span>
+                        <span class="text-[10px] font-extrabold text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-md">${escapeHtml(u.role || 'USER')}</span>
                     </div>
                 `;
             });
@@ -5823,7 +5854,9 @@ return;
             if (document.getElementById('area-count-Khu Vực Công Cộng')) document.getElementById('area-count-Khu Vực Công Cộng').innerText = countAreaPublic;
 
             let processedTasks = baseFilteredTasks.filter(t => {
-                const matchesSearch = t.title.toLowerCase().includes(searchQuery) || (t.description && t.description.toLowerCase().includes(searchQuery));
+                const safeTitle = String(t.title || '').toLowerCase();
+                const safeDesc = String(t.description || '').toLowerCase();
+                const matchesSearch = safeTitle.includes(searchQuery) || safeDesc.includes(searchQuery);
                 const matchesAssignee = selectedAssignees.length === 0 || selectedAssignees.includes(t.assigneeId);
                 
                 let matchesStatus = true;
@@ -6060,12 +6093,12 @@ return;
 
             const updaterName = currentUser ? (currentUser.nickname || currentUser.name) : 'Nhân viên';
 
-            await db.collection('tasks').doc(taskId).update({ 
+            await db.collection('tasks').doc(taskId).set({ 
                 status, 
                 progress, 
                 note,
                 updatedAt: Date.now()
-            });
+            }, { merge: true });
 await addLog(`Cập nhật tiến độ công việc: ${task.title} (${progress}%)`);
             closeStaffUpdateModal();
             if (status === 'Đã Hoàn Thành' || progress === 100) {
@@ -6311,11 +6344,16 @@ await addLog(`Cập nhật tiến độ công việc: ${task.title} (${progress}
                     document.getElementById('task-deadline-input').value = task.deadline || '';
                     
                     if (task.assigneeId) {
-                        const u = cloudUsers.find(user => user.id === task.assigneeId);
+                        const usersPool = getAvailableUsersForAssign();
+                        const u = usersPool.find(user => user.id === task.assigneeId) || defaultUsers.find(user => user.id === task.assigneeId);
                         if (u) {
                             selectedAssigneeId = u.id;
                             document.getElementById('task-assignee-input').value = u.id;
-                            document.getElementById('task-assignee-search').value = `${u.name} (${u.phone || ''})`;
+                            document.getElementById('task-assignee-search').value = `${u.name || u.id} (${u.phone || ''})`;
+                        } else {
+                            selectedAssigneeId = task.assigneeId;
+                            document.getElementById('task-assignee-input').value = task.assigneeId;
+                            document.getElementById('task-assignee-search').value = `ID: ${task.assigneeId} (Nhân sự đã xóa)`;
                         }
                     }
                 }
@@ -6332,55 +6370,106 @@ await addLog(`Cập nhật tiến độ công việc: ${task.title} (${progress}
             const description = document.getElementById('task-desc-input').value.trim();
             const areaCategory = detectTaskArea(title, description);
             const priority = document.getElementById('task-priority-input').value;
-            const assigneeId = document.getElementById('task-assignee-input').value;
+            let assigneeId = document.getElementById('task-assignee-input').value.trim();
+            const assigneeSearchText = (document.getElementById('task-assignee-search')?.value || '').trim();
             const startDate = document.getElementById('task-start-date-input').value;
             const deadline = document.getElementById('task-deadline-input').value;
 
-            const creatorName = currentUser ? (currentUser.nickname || currentUser.name) : 'Admin';
+            if (!title) {
+                showPushBannerToast('Vui lòng nhập tiêu đề công việc.', true);
+                return;
+            }
+
+            // Tự khớp nhân sự nếu người dùng gõ tên/SĐT mà chưa bấm chọn từ danh sách
+            if (!assigneeId && assigneeSearchText) {
+                const q = assigneeSearchText.toLowerCase();
+                const matched = getAvailableUsersForAssign().find(u => {
+                    const n = String(u.name || '').toLowerCase();
+                    const p = String(u.phone || '').toLowerCase();
+                    const full = `${n} (${p})`;
+                    return n === q || p === q || full === q || u.id === assigneeSearchText;
+                });
+                if (matched) {
+                    assigneeId = matched.id;
+                    document.getElementById('task-assignee-input').value = matched.id;
+                }
+            }
 
             if (!assigneeId) {
-return;
+                showPushBannerToast('Vui lòng chọn Người thực hiện từ danh sách nhân sự.', true);
+                showAssigneeDropdown();
+                return;
             }
 
-            if (startDate > deadline) {
-return;
+            if (startDate && deadline && startDate > deadline) {
+                showPushBannerToast('Hạn chót (Deadline) phải lớn hơn hoặc bằng Ngày bắt đầu.', true);
+                return;
             }
 
-            if (taskId) {
-                await db.collection('tasks').doc(taskId).update({
-                    title, description, areaCategory, priority, assigneeId, startDate, deadline, updatedAt: Date.now()
-                });
-await addLog(`Cập nhật công việc: ${title}`);
-} else {
-                const nowTs = Date.now();
-                const createdObj = {
-                    title, description, areaCategory, priority, assigneeId, startDate, deadline,
-                    status: 'Chưa Thực Hiện', progress: 0,
-                    creatorId: currentUser ? currentUser.id : 'shp',
-                    createdAt: new Date().toISOString().split('T')[0],
-                    timestamp: nowTs
-                };
-                const createdTaskRef = await db.collection('tasks').add(createdObj);
-                if (!cloudTasks.some(t => t.id === createdTaskRef.id)) {
-                    cloudTasks = [{ id: createdTaskRef.id, ...createdObj }, ...cloudTasks];
+            if (typeof db === 'undefined' || !db) {
+                showPushBannerToast('Chưa kết nối được Firebase Firestore. Vui lòng tải lại trang.', true);
+                return;
+            }
+
+            try {
+                if (taskId) {
+                    const existingTask = cloudTasks.find(t => t.id === taskId) || {};
+                    const updatePayload = {
+                        title,
+                        description,
+                        areaCategory,
+                        priority,
+                        assigneeId,
+                        startDate,
+                        deadline,
+                        status: existingTask.status || 'Chưa Thực Hiện',
+                        progress: typeof existingTask.progress === 'number' ? existingTask.progress : 0,
+                        createdAt: existingTask.createdAt || new Date().toISOString().split('T')[0],
+                        timestamp: existingTask.timestamp || Date.now(),
+                        updatedAt: Date.now()
+                    };
+                    // Dùng set(..., { merge: true }) để không bị lỗi NOT_FOUND nếu document đã bị xóa trên Firebase
+                    await db.collection('tasks').doc(taskId).set(updatePayload, { merge: true });
+                    addLog(`Cập nhật công việc: ${title}`).catch(() => {});
+                    closeTaskModal();
+                    renderTasks();
+                    renderDashboard();
+                    showPushBannerToast('Đã cập nhật công việc thành công!');
+                } else {
+                    const nowTs = Date.now();
+                    const createdObj = {
+                        title, description, areaCategory, priority, assigneeId, startDate, deadline,
+                        status: 'Chưa Thực Hiện', progress: 0,
+                        creatorId: currentUser ? currentUser.id : 'shp',
+                        createdAt: new Date().toISOString().split('T')[0],
+                        timestamp: nowTs
+                    };
+                    const createdTaskRef = await db.collection('tasks').add(createdObj);
+                    if (!cloudTasks.some(t => t.id === createdTaskRef.id)) {
+                        cloudTasks = [{ id: createdTaskRef.id, ...createdObj }, ...cloudTasks];
+                    }
+                    closeTaskModal();
+                    renderTasks();
+                    renderDashboard();
+                    showPushBannerToast('Đã giao việc mới thành công!');
+
+                    // Gửi thông báo & ghi log bất đồng bộ, không làm lỗi luồng giao việc nếu collection push_notifications/logs bị xóa hoặc lỗi quyền
+                    Promise.resolve(notifyAssignedTaskPush({
+                        taskId: createdTaskRef.id,
+                        title,
+                        description,
+                        assigneeId,
+                        startDate,
+                        deadline,
+                        priority,
+                        areaCategory
+                    })).catch(err => console.warn('notifyAssignedTaskPush notice:', err));
+                    addLog(`Tạo và giao công việc mới: ${title}`).catch(() => {});
                 }
-                closeTaskModal();
-                renderTasks();
-                renderDashboard();
-                await notifyAssignedTaskPush({
-                    taskId: createdTaskRef.id,
-                    title,
-                    description,
-                    assigneeId,
-                    startDate,
-                    deadline,
-                    priority,
-                    areaCategory
-                });
-await addLog(`Tạo và giao công việc mới: ${title}`);
-}
-            closeTaskModal();
-            renderTasks();
+            } catch (err) {
+                console.error('Lỗi lưu công việc lên Firebase:', err);
+                showPushBannerToast('Không thể lưu công việc lên Firebase: ' + (err.message || err), true);
+            }
         }
 
         async function deleteTask(id) {
@@ -8269,7 +8358,8 @@ return;
 }
 
         function escapeHtml(str) {
-            return str ? str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : '';
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
 
     </script>
