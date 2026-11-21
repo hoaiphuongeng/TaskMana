@@ -275,6 +275,57 @@
             background-color: rgba(99, 102, 241, 0.85);
             transform: scaleY(1.3);
         }
+        /* ==================== STAFF STARDOCK (BOTTOM DOCK CHO NHÂN VIÊN) ==================== */
+        #staff-stardock {
+            padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+        }
+        .stardock-btn {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 64px;
+            padding: 0.25rem 0.5rem;
+            border-radius: 1.25rem;
+            transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .stardock-btn:hover {
+            transform: translateY(-5px) scale(1.08);
+        }
+        .stardock-btn:active {
+            transform: scale(0.92);
+        }
+        .stardock-btn.stardock-active .stardock-icon-box {
+            box-shadow: 0 10px 22px -4px rgba(79, 70, 229, 0.55), 0 0 0 2px rgba(255, 255, 255, 0.85);
+            transform: translateY(-2px) scale(1.06);
+        }
+        .stardock-btn.stardock-active .stardock-label {
+            color: #4f46e5;
+            font-weight: 800;
+        }
+        html.dark .stardock-btn.stardock-active .stardock-label {
+            color: #a5b4fc !important;
+        }
+        .stardock-active-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 9999px;
+            background-color: #4f46e5;
+            margin-top: 2px;
+            opacity: 0;
+            transform: scale(0);
+            transition: all 0.22s ease;
+        }
+        html.dark .stardock-active-dot {
+            background-color: #818cf8;
+        }
+        .stardock-btn.stardock-active .stardock-active-dot {
+            opacity: 1;
+            transform: scale(1);
+        }
 
         /* ==================== CHẾ ĐỘ GIAO DIỆN SÁNG / TỐI (DARK / LIGHT MODE) ==================== */
         html {
@@ -829,6 +880,9 @@
                             <i class="fa-solid fa-file-excel"></i>
                             <span class="hidden sm:inline">Xuất CSV</span>
                         </button>
+                        <button type="button" id="btn-staff-logout-header" onclick="handleLogout()" title="Đăng xuất" class="staff-only hidden p-2 rounded-xl border border-rose-300/80 bg-rose-50/90 hover:bg-rose-100 text-rose-600 text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer">
+                            <i class="fa-solid fa-power-off text-xs"></i>
+                        </button>
                         <div class="h-4 w-px bg-slate-300 hidden md:block"></div>
                         <span id="current-time-display" class="text-xs font-bold text-slate-700 hidden md:inline"></span>
                     </div>
@@ -861,7 +915,7 @@
                         </div>
 
                         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-                            <div class="ios-card p-4 sm:p-5 flex items-center justify-between bg-slate-50/80">
+                            <div onclick="handleStatCardClick('todo')" title="Bấm để xem danh sách công việc Chưa làm" class="ios-card p-4 sm:p-5 flex items-center justify-between bg-slate-50/80 clickable-stat">
                                 <div>
                                     <p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-600">Chưa làm</p>
                                     <h3 id="stat-todo" class="text-2xl font-black text-slate-800 mt-1">0</h3>
@@ -870,7 +924,7 @@
                                     <i class="fa-solid fa-list"></i>
                                 </div>
                             </div>
-                            <div class="ios-card p-4 sm:p-5 flex items-center justify-between bg-amber-50/50">
+                            <div onclick="handleStatCardClick('doing')" title="Bấm để xem danh sách công việc Đang làm" class="ios-card p-4 sm:p-5 flex items-center justify-between bg-amber-50/50 clickable-stat">
                                 <div>
                                     <p class="text-[10px] font-extrabold uppercase tracking-wider text-amber-700">Đang làm</p>
                                     <h3 id="stat-doing" class="text-2xl font-black text-amber-700 mt-1">0</h3>
@@ -879,7 +933,7 @@
                                     <i class="fa-solid fa-spinner"></i>
                                 </div>
                             </div>
-                            <div onclick="handleStatCardClick('overdue')" class="ios-card p-4 sm:p-5 bg-rose-50/70 border-rose-200 flex items-center justify-between clickable-stat">
+                            <div onclick="handleStatCardClick('overdue')" title="Bấm để xem danh sách công việc Quá hạn" class="ios-card p-4 sm:p-5 bg-rose-50/70 border-rose-200 flex items-center justify-between clickable-stat">
                                 <div>
                                     <p class="text-[10px] font-extrabold uppercase tracking-wider text-rose-700">Quá hạn</p>
                                     <h3 id="stat-overdue" class="text-2xl font-black text-rose-700 mt-1">0</h3>
@@ -888,7 +942,7 @@
                                     <i class="fa-solid fa-triangle-exclamation"></i>
                                 </div>
                             </div>
-                            <div class="ios-card p-4 sm:p-5 flex items-center justify-between bg-indigo-50/50">
+                            <div onclick="handleStatCardClick('all')" title="Bấm để xem tất cả công việc" class="ios-card p-4 sm:p-5 flex items-center justify-between bg-indigo-50/50 clickable-stat">
                                 <div>
                                     <p class="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700">Tổng việc</p>
                                     <h3 id="stat-total" class="text-2xl font-black text-indigo-900 mt-1">0</h3>
@@ -897,7 +951,7 @@
                                     <i class="fa-solid fa-briefcase"></i>
                                 </div>
                             </div>
-                            <div class="ios-card p-4 sm:p-5 flex items-center justify-between bg-emerald-50/50">
+                            <div onclick="handleStatCardClick('done')" title="Bấm để xem danh sách công việc Đã hoàn thành" class="ios-card p-4 sm:p-5 flex items-center justify-between bg-emerald-50/50 clickable-stat">
                                 <div>
                                     <p class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">Hoàn thành</p>
                                     <h3 id="stat-done" class="text-2xl font-black text-emerald-700 mt-1">0</h3>
@@ -906,7 +960,7 @@
                                     <i class="fa-solid fa-circle-check"></i>
                                 </div>
                             </div>
-                            <div class="ios-card p-4 sm:p-5 flex items-center justify-between bg-purple-50/50">
+                            <div onclick="handleStatCardClick('done')" title="Bấm để xem danh sách công việc Đã hoàn thành" class="ios-card p-4 sm:p-5 flex items-center justify-between bg-purple-50/50 clickable-stat">
                                 <div>
                                     <p class="text-[10px] font-extrabold uppercase tracking-wider text-purple-700">Tỷ lệ xong</p>
                                     <h3 id="stat-completion-rate" class="text-2xl font-black text-purple-800 mt-1">0%</h3>
@@ -1316,7 +1370,7 @@
 
                     <!-- TAB 2: TASKS -->
                     <div id="tab-content-tasks" class="tab-content space-y-4 sm:space-y-6 hidden">
-                        <div class="ios-card p-4 flex flex-col lg:flex-row items-center justify-between gap-3 sm:gap-4">
+                        <div class="ios-card relative z-30 overflow-visible p-4 flex flex-col lg:flex-row items-center justify-between gap-3 sm:gap-4">
                             <div class="flex flex-wrap items-center gap-2 sm:gap-3 w-full lg:w-auto">
                                 <div class="flex items-center space-x-1 bg-slate-300/60 dark:bg-slate-800 p-1 rounded-2xl overflow-x-auto max-w-full">
                                     <span class="text-xs font-bold text-slate-700 dark:text-slate-300 pl-2 pr-1 hidden sm:inline"><i class="fa-solid fa-eye"></i> Xem:</span>
@@ -1330,12 +1384,12 @@
                                     <input type="text" id="task-search" placeholder="Tìm kiếm công việc..." class="w-full pl-9 pr-4 py-2 rounded-2xl border border-slate-300 dark:border-slate-700 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white/90 dark:bg-slate-900/90 font-semibold text-slate-900 dark:text-white shadow-xs">
                                 </div>
 
-                                <div class="relative inline-block text-left">
+                                <div class="relative z-40 inline-block text-left">
                                     <button type="button" onclick="toggleMultiSelectDropdown('assignee')" class="px-3 py-2 rounded-2xl border border-slate-300 dark:border-slate-700 text-xs sm:text-sm bg-white/90 dark:bg-slate-900/90 font-bold text-slate-900 dark:text-white shadow-xs flex items-center justify-between space-x-2">
                                         <span id="assignee-filter-label">Tất cả nhân sự</span>
                                         <i class="fa-solid fa-chevron-down text-xs"></i>
                                     </button>
-                                    <div id="multi-dropdown-assignee" class="absolute z-20 left-0 mt-1 w-56 rounded-2xl shadow-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hidden custom-scrollbar p-2 space-y-1 max-h-56 overflow-y-auto">
+                                    <div id="multi-dropdown-assignee" class="absolute z-50 left-0 mt-1.5 w-60 max-w-[calc(100vw-2rem)] rounded-2xl shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hidden custom-scrollbar p-2 space-y-1 max-h-64 overflow-y-auto">
                                     </div>
                                 </div>
 
@@ -1346,7 +1400,7 @@
                             </button>
                         </div>
 
-                        <div class="ios-card p-2.5 sm:p-3">
+                        <div class="ios-card relative z-10 p-2.5 sm:p-3">
                             <div class="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
                                 <span class="text-xs font-extrabold text-slate-700 dark:text-slate-200 pl-2 pr-1 flex items-center space-x-1 whitespace-nowrap">
                                     <i class="fa-solid fa-filter text-indigo-600 dark:text-indigo-400"></i>
@@ -1379,7 +1433,7 @@
                             </div>
                         </div>
 
-                        <div class="ios-card p-2.5 sm:p-3">
+                        <div class="ios-card relative z-10 p-2.5 sm:p-3">
                             <div class="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
                                 <span class="text-xs font-extrabold text-slate-700 dark:text-slate-200 pl-2 pr-1 flex items-center space-x-1 whitespace-nowrap">
                                     <i class="fa-solid fa-location-dot text-indigo-600 dark:text-indigo-400"></i>
@@ -1558,6 +1612,38 @@
             <button type="button" id="fab-assign-task" onclick="openTaskModal()" class="fixed bottom-6 right-6 z-40 w-14 h-14 sm:w-15 sm:h-15 flex items-center justify-center bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white rounded-full shadow-xl shadow-indigo-600/40 hover:shadow-2xl hover:shadow-indigo-600/60 hover:scale-110 active:scale-90 transition-all duration-300 admin-only hidden group cursor-pointer border-2 border-white/40 ring-4 ring-indigo-500/20 backdrop-blur-md select-none" title="Giao việc mới (Admin)" aria-label="Giao việc mới">
                 <i class="fa-solid fa-plus text-xl sm:text-2xl text-white group-hover:rotate-90 transition-transform duration-300 drop-shadow-sm"></i>
             </button>
+
+            <!-- THANH STARDOCK BÊN DƯỚI DÀNH CHO USER NHÂN VIÊN (THAY THẾ MENU/SIDEBAR) -->
+            <nav id="staff-stardock" aria-label="Thanh điều hướng nhanh nhân viên" class="staff-only hidden fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-40 ios-dock-container px-2.5 sm:px-4 py-2 flex items-center justify-center space-x-1.5 sm:space-x-3 max-w-[95vw]">
+                <button type="button" id="stardock-dashboard" onclick="handleStaffStardockClick('dashboard', this)" class="stardock-btn stardock-active" title="Dashboard">
+                    <div class="stardock-icon-box w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-lg shadow-md shadow-indigo-500/30 transition-all">
+                        <i class="fa-solid fa-chart-pie"></i>
+                    </div>
+                    <span class="stardock-label text-[10px] font-bold text-slate-700 dark:text-slate-200 mt-1 whitespace-nowrap">Dashboard</span>
+                    <span class="stardock-active-dot"></span>
+                </button>
+                <button type="button" id="stardock-tasks" onclick="handleStaffStardockClick('tasks', this)" class="stardock-btn" title="Quản lý Công việc">
+                    <div class="stardock-icon-box w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center text-lg shadow-md shadow-amber-500/30 transition-all">
+                        <i class="fa-solid fa-list-check"></i>
+                    </div>
+                    <span class="stardock-label text-[10px] font-bold text-slate-700 dark:text-slate-200 mt-1 whitespace-nowrap">Công việc</span>
+                    <span class="stardock-active-dot"></span>
+                </button>
+                <button type="button" id="stardock-schedule" onclick="handleStaffStardockClick('schedule', this)" class="stardock-btn" title="Lịch Làm Việc">
+                    <div class="stardock-icon-box w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 text-white flex items-center justify-center text-lg shadow-md shadow-emerald-500/30 transition-all">
+                        <i class="fa-solid fa-calendar-days"></i>
+                    </div>
+                    <span class="stardock-label text-[10px] font-bold text-slate-700 dark:text-slate-200 mt-1 whitespace-nowrap">Lịch làm việc</span>
+                    <span class="stardock-active-dot"></span>
+                </button>
+                <button type="button" id="stardock-profile-settings" onclick="handleStaffStardockClick('profile-settings', this)" class="stardock-btn" title="Cài đặt Tài khoản">
+                    <div class="stardock-icon-box w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 text-white flex items-center justify-center text-lg shadow-md shadow-sky-500/30 transition-all">
+                        <i class="fa-solid fa-gear"></i>
+                    </div>
+                    <span class="stardock-label text-[10px] font-bold text-slate-700 dark:text-slate-200 mt-1 whitespace-nowrap">Cài đặt</span>
+                    <span class="stardock-active-dot"></span>
+                </button>
+            </nav>
         </div>
     </div>
 
@@ -3766,6 +3852,15 @@ return;
             const backdrop = document.getElementById('sidebar-backdrop');
             if (!sidebar) return;
 
+            const isStaffOnly = currentUser && !(currentUser.id === 'shp' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN');
+            if (isStaffOnly) {
+                sidebar.classList.remove('lg:static', 'lg:translate-x-0');
+                sidebar.classList.add('-translate-x-full', 'hidden');
+                if (backdrop) backdrop.classList.add('hidden');
+                return;
+            }
+            sidebar.classList.remove('hidden');
+
             if (isSidebarPinned && window.innerWidth >= 1024) {
                 sidebar.classList.remove('-translate-x-full');
                 sidebar.classList.add('lg:static', 'lg:translate-x-0');
@@ -3820,6 +3915,8 @@ return;
         }
 
         function handleSidebarEdgeHover() {
+            const isStaffOnly = currentUser && !(currentUser.id === 'shp' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN');
+            if (isStaffOnly) return;
             if (isSidebarPinned && window.innerWidth >= 1024) return;
             clearTimeout(sidebarHoverTimeout);
             const sidebar = document.getElementById('mobile-sidebar');
@@ -4280,12 +4377,34 @@ let firestoreUnsubscribers = [];
                 document.querySelectorAll('.admin-only').forEach(el => {
                     el.classList.toggle('hidden', !isSuperAdminOrAdmin);
                 });
+                document.querySelectorAll('.staff-only').forEach(el => {
+                    el.classList.toggle('hidden', isSuperAdminOrAdmin);
+                });
+
+                const menuBtn = document.getElementById('btn-sidebar-toggle');
+                const sidebarEl = document.getElementById('mobile-sidebar');
+                const edgeTrigger = document.getElementById('sidebar-edge-trigger');
+                const scrollWrap = document.getElementById('main-scroll-container');
+                if (menuBtn) menuBtn.classList.toggle('hidden', !isSuperAdminOrAdmin);
+                if (edgeTrigger) edgeTrigger.classList.toggle('hidden', !isSuperAdminOrAdmin);
+                if (sidebarEl) {
+                    sidebarEl.classList.toggle('hidden', !isSuperAdminOrAdmin);
+                    if (!isSuperAdminOrAdmin) {
+                        sidebarEl.classList.remove('lg:static', 'lg:translate-x-0');
+                        sidebarEl.classList.add('-translate-x-full');
+                    }
+                }
+                if (scrollWrap) {
+                    scrollWrap.classList.toggle('pb-28', !isSuperAdminOrAdmin);
+                }
+                applySidebarPinState();
 
                 const adminDash = document.getElementById('admin-advanced-dashboard');
                 if (adminDash) {
                     adminDash.classList.toggle('hidden', !isSuperAdminOrAdmin);
                 }
 
+                updateStaffStardockActive('dashboard');
                 switchTab('dashboard');
 } catch (err) {
                 console.warn('Phiên đăng nhập không hợp lệ:', err.message || err);
@@ -5943,14 +6062,40 @@ return;
         }
 
         function handleStatCardClick(statType) {
-            if (statType !== 'overdue') return;
             if (!currentUser) return;
             const filterType = document.getElementById('dashboard-time-filter')?.value || 'all';
             const isAdmin = currentUser.id === 'shp' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN';
-            let tasksToCalc = cloudTasks;
-            if (!isAdmin) {
-                tasksToCalc = cloudTasks.filter(t => t.assigneeId === currentUser.id);
+
+            const statusMap = {
+                'todo': 'Chưa Thực Hiện',
+                'doing': 'Đang Thực Hiện',
+                'overdue': 'Quá Hạn',
+                'done': 'Đã Hoàn Thành',
+                'all': 'all'
+            };
+
+            // Với user nhân viên: click bất kỳ ô trạng thái nào trên Dashboard đều tự động nhảy qua trang Quản lý Công việc tương ứng
+            // Với Admin: các ô Chưa làm / Đang làm / Hoàn thành / Tổng việc cũng nhảy nhanh sang trang Công việc, riêng Quá hạn vẫn giữ bảng chi tiết nhanh
+            if (!isAdmin || statType !== 'overdue') {
+                const targetStatus = statusMap[statType] || 'all';
+                const viewMap = {
+                    'today': 'day',
+                    'week': 'week',
+                    'month': 'month'
+                };
+                const targetView = viewMap[filterType] || 'all';
+
+                const searchInput = document.getElementById('task-search');
+                if (searchInput) searchInput.value = '';
+                currentTaskAreaFilter = 'all';
+                if (typeof setTaskAreaFilter === 'function') setTaskAreaFilter('all');
+                if (typeof setTaskFutureView === 'function') setTaskFutureView(targetView);
+                if (typeof setTaskStatusFilter === 'function') setTaskStatusFilter(targetStatus);
+                switchTab('tasks');
+                return;
             }
+
+            let tasksToCalc = cloudTasks;
             let filteredTasks = filterTasksByTime(tasksToCalc, filterType);
             const todayStr = formatLocalDate(new Date());
             const getNormStatus = (t) => (t.status || 'Chưa Thực Hiện').trim();
@@ -7922,8 +8067,40 @@ return;
 if (tab === 'users') renderUsers();
                 if (tab === 'web-tool') loadWebToolView();
                 renderIosDock();
+                updateStaffStardockActive(tab);
             }, 300);
         }
+
+        function updateStaffStardockActive(tab) {
+            const dockTabs = ['dashboard', 'tasks', 'schedule', 'profile-settings'];
+            dockTabs.forEach(t => {
+                const btn = document.getElementById(`stardock-${t}`);
+                if (btn) {
+                    btn.classList.toggle('stardock-active', t === tab);
+                }
+            });
+        }
+
+        function handleStaffStardockClick(tab, btnEl) {
+            if (btnEl) {
+                const iconBox = btnEl.querySelector('.stardock-icon-box');
+                if (iconBox) {
+                    iconBox.classList.remove('dock-bounce');
+                    void iconBox.offsetWidth;
+                    iconBox.classList.add('dock-bounce');
+                }
+            }
+            updateStaffStardockActive(tab);
+            if (tab === 'dashboard') {
+                switchTab('dashboard');
+                renderDashboard();
+                renderShiftStatistics();
+            } else {
+                switchTab(tab);
+            }
+        }
+        window.handleStaffStardockClick = handleStaffStardockClick;
+        window.updateStaffStardockActive = updateStaffStardockActive;
 
         // ==============================================================
         // --- HỆ THỐNG THANH TASKBAR / DOCK AUTO-HIDE KIỂU IOS ---
