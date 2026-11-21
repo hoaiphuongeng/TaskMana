@@ -278,6 +278,31 @@
         /* ==================== STAFF STARDOCK (BOTTOM DOCK CHO NHÂN VIÊN) ==================== */
         #staff-stardock {
             padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+            transition: transform 0.36s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.26s ease;
+        }
+        #staff-stardock.stardock-autohidden {
+            transform: translate(-50%, calc(100% + 28px)) !important;
+            opacity: 0;
+            pointer-events: none;
+        }
+        #staff-stardock.stardock-visible {
+            transform: translate(-50%, 0) !important;
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #staff-stardock-trigger {
+            padding-bottom: max(0.45rem, env(safe-area-inset-bottom));
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+        #staff-stardock-trigger.trigger-hidden {
+            opacity: 0;
+            transform: translate(-50%, 10px);
+            pointer-events: none;
+        }
+        #staff-stardock-trigger.trigger-visible {
+            opacity: 1;
+            transform: translate(-50%, 0);
+            pointer-events: auto;
         }
         .stardock-btn {
             position: relative;
@@ -1613,35 +1638,47 @@
                 <i class="fa-solid fa-plus text-xl sm:text-2xl text-white group-hover:rotate-90 transition-transform duration-300 drop-shadow-sm"></i>
             </button>
 
+            <!-- THANH CHẠM/RÊ CHUỘT MỞ LẠI STARDOCK KHI ĐANG TỰ ĐỘNG ẨN -->
+            <div id="staff-stardock-trigger" onmouseenter="showStaffStardock(false)" onclick="showStaffStardock(true)" class="staff-only hidden trigger-hidden fixed bottom-0 left-1/2 -translate-x-1/2 z-40 px-6 pt-3 cursor-pointer select-none flex flex-col items-center" title="Chạm hoặc rê chuột để mở thanh Stardock">
+                <div class="ios-dock-pill w-28 sm:w-32 h-2 rounded-full bg-indigo-500/75 dark:bg-indigo-400/80 shadow-lg ring-2 ring-white/60 dark:ring-slate-900/60 flex items-center justify-center"></div>
+            </div>
+
             <!-- THANH STARDOCK BÊN DƯỚI DÀNH CHO USER NHÂN VIÊN (THAY THẾ MENU/SIDEBAR) -->
-            <nav id="staff-stardock" aria-label="Thanh điều hướng nhanh nhân viên" class="staff-only hidden fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-40 ios-dock-container px-2.5 sm:px-4 py-2 flex items-center justify-center space-x-1.5 sm:space-x-3 max-w-[95vw]">
+            <nav id="staff-stardock" onmouseenter="handleStaffStardockMouseEnter()" onmouseleave="handleStaffStardockMouseLeave()" aria-label="Thanh điều hướng nhanh nhân viên" class="staff-only hidden stardock-visible fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-40 ios-dock-container px-2 sm:px-3.5 py-2 flex items-center justify-center space-x-1 sm:space-x-2.5 max-w-[96vw]">
                 <button type="button" id="stardock-dashboard" onclick="handleStaffStardockClick('dashboard', this)" class="stardock-btn stardock-active" title="Dashboard">
-                    <div class="stardock-icon-box w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-lg shadow-md shadow-indigo-500/30 transition-all">
+                    <div class="stardock-icon-box w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-base sm:text-lg shadow-md shadow-indigo-500/30 transition-all">
                         <i class="fa-solid fa-chart-pie"></i>
                     </div>
                     <span class="stardock-label text-[10px] font-bold text-slate-700 dark:text-slate-200 mt-1 whitespace-nowrap">Dashboard</span>
                     <span class="stardock-active-dot"></span>
                 </button>
                 <button type="button" id="stardock-tasks" onclick="handleStaffStardockClick('tasks', this)" class="stardock-btn" title="Quản lý Công việc">
-                    <div class="stardock-icon-box w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center text-lg shadow-md shadow-amber-500/30 transition-all">
+                    <div class="stardock-icon-box w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center text-base sm:text-lg shadow-md shadow-amber-500/30 transition-all">
                         <i class="fa-solid fa-list-check"></i>
                     </div>
                     <span class="stardock-label text-[10px] font-bold text-slate-700 dark:text-slate-200 mt-1 whitespace-nowrap">Công việc</span>
                     <span class="stardock-active-dot"></span>
                 </button>
                 <button type="button" id="stardock-schedule" onclick="handleStaffStardockClick('schedule', this)" class="stardock-btn" title="Lịch Làm Việc">
-                    <div class="stardock-icon-box w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 text-white flex items-center justify-center text-lg shadow-md shadow-emerald-500/30 transition-all">
+                    <div class="stardock-icon-box w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 text-white flex items-center justify-center text-base sm:text-lg shadow-md shadow-emerald-500/30 transition-all">
                         <i class="fa-solid fa-calendar-days"></i>
                     </div>
                     <span class="stardock-label text-[10px] font-bold text-slate-700 dark:text-slate-200 mt-1 whitespace-nowrap">Lịch làm việc</span>
                     <span class="stardock-active-dot"></span>
                 </button>
                 <button type="button" id="stardock-profile-settings" onclick="handleStaffStardockClick('profile-settings', this)" class="stardock-btn" title="Cài đặt Tài khoản">
-                    <div class="stardock-icon-box w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 text-white flex items-center justify-center text-lg shadow-md shadow-sky-500/30 transition-all">
+                    <div class="stardock-icon-box w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 text-white flex items-center justify-center text-base sm:text-lg shadow-md shadow-sky-500/30 transition-all">
                         <i class="fa-solid fa-gear"></i>
                     </div>
                     <span class="stardock-label text-[10px] font-bold text-slate-700 dark:text-slate-200 mt-1 whitespace-nowrap">Cài đặt</span>
                     <span class="stardock-active-dot"></span>
+                </button>
+                <div class="h-9 w-px bg-slate-300/70 dark:bg-white/15 mx-0.5 flex-shrink-0"></div>
+                <button type="button" id="btn-staff-stardock-pin" onclick="toggleStaffStardockPin()" class="stardock-btn !min-w-[48px] sm:!min-w-[54px]" title="Ghim cố định hoặc Tự động ẩn thanh Stardock">
+                    <div id="staff-stardock-pin-box" class="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-slate-200/80 dark:bg-slate-700/80 text-slate-600 dark:text-slate-200 flex items-center justify-center text-sm shadow-xs transition-all">
+                        <i id="staff-stardock-pin-icon" class="fa-solid fa-thumbtack"></i>
+                    </div>
+                    <span id="staff-stardock-pin-label" class="text-[9px] font-extrabold text-slate-600 dark:text-slate-300 mt-1 whitespace-nowrap">Tự ẩn</span>
                 </button>
             </nav>
         </div>
@@ -2697,6 +2734,10 @@ let highlightedStaff = {};
             const newProgress = Math.max(0, Math.min(100, parseInt(val, 10) || 0));
             const task = cloudTasks.find(t => t.id === taskId);
             if (!task) return;
+            const isAdmin = currentUser && (currentUser.id === 'shp' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN');
+            if (!isAdmin && currentUser && task.assigneeId !== currentUser.id) {
+                return;
+            }
 
             const oldProgress = typeof task.progress === 'number' ? task.progress : (task.status === 'Đã Hoàn Thành' ? 100 : 0);
             
@@ -3645,6 +3686,7 @@ const defaultUsers = [
             safeRun(initMenubarAutohide);
             safeRun(initSidebarAutohide);
             safeRun(initIosDock);
+            safeRun(initStaffStardock);
             
             try {
                 const currentMonday = getMondayOfWeekDate(new Date());
@@ -4395,15 +4437,20 @@ let firestoreUnsubscribers = [];
                     }
                 }
                 if (scrollWrap) {
-                    scrollWrap.classList.toggle('pb-28', !isSuperAdminOrAdmin);
+                    scrollWrap.classList.toggle('pb-28', !isSuperAdminOrAdmin && isStaffStardockPinned);
+                    scrollWrap.classList.toggle('pb-10', !isSuperAdminOrAdmin && !isStaffStardockPinned);
                 }
                 applySidebarPinState();
+                applyStaffStardockPinState();
 
                 const adminDash = document.getElementById('admin-advanced-dashboard');
                 if (adminDash) {
                     adminDash.classList.toggle('hidden', !isSuperAdminOrAdmin);
                 }
 
+                const assigneeLblInit = document.getElementById('assignee-filter-label');
+                if (assigneeLblInit) assigneeLblInit.innerText = getDefaultAssigneeFilterLabel();
+                populateAssignees();
                 updateStaffStardockActive('dashboard');
                 switchTab('dashboard');
 } catch (err) {
@@ -6087,6 +6134,9 @@ return;
 
                 const searchInput = document.getElementById('task-search');
                 if (searchInput) searchInput.value = '';
+                document.querySelectorAll('#multi-dropdown-assignee input[type="checkbox"]:checked').forEach(cb => { cb.checked = false; });
+                const assigneeLbl = document.getElementById('assignee-filter-label');
+                if (assigneeLbl) assigneeLbl.innerText = getDefaultAssigneeFilterLabel();
                 currentTaskAreaFilter = 'all';
                 if (typeof setTaskAreaFilter === 'function') setTaskAreaFilter('all');
                 if (typeof setTaskFutureView === 'function') setTaskFutureView(targetView);
@@ -6186,19 +6236,50 @@ return;
             renderTasks();
         }
 
+        function getDefaultAssigneeFilterLabel() {
+            const isAdmin = currentUser && (currentUser.id === 'shp' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN');
+            return isAdmin ? 'Tất cả nhân sự' : 'Việc của tôi';
+        }
+
+        function clearAssigneeFilterSelection() {
+            document.querySelectorAll('#multi-dropdown-assignee input[type="checkbox"]:checked').forEach(cb => {
+                cb.checked = false;
+            });
+            handleMultiSelectChange('assignee');
+        }
+        window.clearAssigneeFilterSelection = clearAssigneeFilterSelection;
+
         function populateAssignees() {
             const container = document.getElementById('multi-dropdown-assignee');
             if (container) {
-                let html = '';
-                cloudUsers.forEach(u => {
+                const prevChecked = new Set(
+                    Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value)
+                );
+                const usersList = (Array.isArray(cloudUsers) && cloudUsers.length > 0 ? cloudUsers : defaultUsers)
+                    .filter(u => u && u.id && u.status !== 'INACTIVE');
+
+                let html = `
+                    <div class="flex items-center justify-between px-1.5 pb-1.5 mb-1 border-b border-slate-200 dark:border-slate-700">
+                        <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Lọc theo nhân sự</span>
+                        <button type="button" onclick="clearAssigneeFilterSelection()" class="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">Mặc định</button>
+                    </div>
+                `;
+                usersList.forEach(u => {
+                    const isChecked = prevChecked.has(u.id) ? 'checked' : '';
+                    const isMe = currentUser && u.id === currentUser.id;
                     html += `
-                        <label class="multi-select-option flex items-center space-x-2 p-1.5 rounded-xl cursor-pointer text-xs font-bold text-slate-800">
-                            <input type="checkbox" value="${u.id}" onchange="handleMultiSelectChange('assignee')" class="rounded text-indigo-600 focus:ring-indigo-500">
-                            <span>${escapeHtml(u.name)}</span>
+                        <label class="multi-select-option flex items-center space-x-2 p-1.5 rounded-xl cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-200">
+                            <input type="checkbox" value="${u.id}" ${isChecked} onchange="handleMultiSelectChange('assignee')" class="rounded text-indigo-600 focus:ring-indigo-500">
+                            <span class="truncate">${escapeHtml(u.name)}${isMe ? ' (Tôi)' : ''}</span>
                         </label>
                     `;
                 });
                 container.innerHTML = html;
+
+                const label = document.getElementById('assignee-filter-label');
+                if (label && prevChecked.size === 0) {
+                    label.innerText = getDefaultAssigneeFilterLabel();
+                }
             }
         }
 
@@ -6212,7 +6293,11 @@ return;
             const label = document.getElementById(`${type}-filter-label`);
             if (label) {
                 if (checkboxes.length === 0) {
-                    label.innerText = 'Tất cả nhân sự';
+                    label.innerText = getDefaultAssigneeFilterLabel();
+                } else if (checkboxes.length === 1) {
+                    const selectedId = checkboxes[0].value;
+                    const found = (cloudUsers.length > 0 ? cloudUsers : defaultUsers).find(u => u.id === selectedId);
+                    label.innerText = found ? found.name : 'Đã chọn (1)';
                 } else {
                     label.innerText = `Đã chọn (${checkboxes.length})`;
                 }
@@ -6308,8 +6393,11 @@ return;
             const searchQuery = document.getElementById('task-search')?.value.toLowerCase() || '';
             const selectedAssignees = Array.from(document.querySelectorAll('#multi-dropdown-assignee input[type="checkbox"]:checked')).map(cb => cb.value);
 
+            const isCurrentUserAdmin = currentUser && (currentUser.id === 'shp' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN');
             let baseFilteredTasks = filterTasksByTime(cloudTasks, taskFutureViewMode);
-            if (currentUser && currentUser.role !== 'ADMIN') {
+            if (selectedAssignees.length > 0) {
+                baseFilteredTasks = baseFilteredTasks.filter(t => selectedAssignees.includes(t.assigneeId));
+            } else if (currentUser && !isCurrentUserAdmin) {
                 baseFilteredTasks = baseFilteredTasks.filter(t => t.assigneeId === currentUser.id);
             }
 
@@ -6443,6 +6531,7 @@ return;
                                         <span class="text-slate-600 dark:text-slate-400 text-[10px]">Tiến độ:</span>
                                         <span id="task-prog-disp-${t.id}" class="font-black ${t.progress === 100 || t.status === 'Đã Hoàn Thành' ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-600 dark:text-indigo-400'}">${t.progress || 0}%</span>
                                     </div>
+                                    ${(isAdmin || (currentUser && t.assigneeId === currentUser.id)) ? `
                                     <div class="relative flex items-center">
                                         <input 
                                             type="range" 
@@ -6461,6 +6550,11 @@ return;
                                         <span class="text-[8px] opacity-0 group-hover/prog:opacity-100 transition-opacity text-indigo-500 font-bold">Kéo chỉnh %</span>
                                         <span>100%</span>
                                     </div>
+                                    ` : `
+                                    <div class="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                        <div class="h-full rounded-full ${t.progress === 100 || t.status === 'Đã Hoàn Thành' ? 'bg-emerald-500' : 'bg-indigo-500'}" style="width: ${t.progress || 0}%"></div>
+                                    </div>
+                                    `}
                                 </div>
                             </td>
                             <td class="py-4 px-3 sm:px-4 align-top text-xs whitespace-nowrap">
@@ -6477,9 +6571,15 @@ return;
                                 </div>
                             </td>
                             <td class="py-4 px-4 sm:px-6 align-top text-right space-x-1.5 whitespace-nowrap">
+                                ${(isAdmin || (currentUser && t.assigneeId === currentUser.id)) ? `
                                 <button onclick="openStaffUpdateModal('${t.id}')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-xs" title="Cập nhật tiến độ">
                                     Cập nhật
                                 </button>
+                                ` : `
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-xl text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700" title="Bạn chỉ có quyền xem công việc của nhân sự khác">
+                                    <i class="fa-regular fa-eye mr-1 text-[10px]"></i>Chỉ xem
+                                </span>
+                                `}
                                 ${isAdmin ? `
                                 <button onclick="openTaskModal('${t.id}')" class="p-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold transition-all border border-slate-300 dark:border-slate-700 shadow-2xs" title="Sửa công việc">
                                     <i class="fa-solid fa-pen"></i>
@@ -6542,6 +6642,13 @@ return;
         function openStaffUpdateModal(taskId) {
             const task = cloudTasks.find(t => t.id === taskId);
             if (!task) return;
+            const isAdmin = currentUser && (currentUser.id === 'shp' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN');
+            if (!isAdmin && currentUser && task.assigneeId !== currentUser.id) {
+                if (typeof showPushBannerToast === 'function') {
+                    showPushBannerToast('Bạn chỉ có thể xem công việc của nhân viên khác, không thể cập nhật tiến độ.', true);
+                }
+                return;
+            }
             document.getElementById('staff-task-id').value = task.id;
             document.getElementById('staff-task-title').innerText = task.title;
 
@@ -8081,6 +8188,146 @@ if (tab === 'users') renderUsers();
             });
         }
 
+        let isStaffStardockPinned = localStorage.getItem('tm_staff_stardock_pinned_v1') === 'true';
+        let staffStardockHideTimer = null;
+        let _staffStardockInitialized = false;
+        let _lastStaffDockScrollTop = 0;
+
+        function isCurrentUserStaff() {
+            return Boolean(currentUser && !(currentUser.id === 'shp' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN'));
+        }
+
+        function initStaffStardock() {
+            applyStaffStardockPinState();
+            if (_staffStardockInitialized) return;
+            _staffStardockInitialized = true;
+
+            const scrollContainer = document.getElementById('main-scroll-container');
+            if (scrollContainer) {
+                scrollContainer.addEventListener('scroll', () => {
+                    if (!isCurrentUserStaff() || isStaffStardockPinned) return;
+                    const currentScroll = scrollContainer.scrollTop;
+                    const delta = currentScroll - _lastStaffDockScrollTop;
+                    if (delta > 12 && currentScroll > 40) {
+                        hideStaffStardock();
+                    } else if (delta < -10 || currentScroll <= 25) {
+                        showStaffStardock(true);
+                    }
+                    _lastStaffDockScrollTop = Math.max(0, currentScroll);
+                }, { passive: true });
+            }
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isCurrentUserStaff() || isStaffStardockPinned) return;
+                if (window.innerHeight - e.clientY <= 28) {
+                    showStaffStardock(false);
+                }
+            });
+        }
+
+        function applyStaffStardockPinState() {
+            const dock = document.getElementById('staff-stardock');
+            const trigger = document.getElementById('staff-stardock-trigger');
+            const pinBox = document.getElementById('staff-stardock-pin-box');
+            const pinIcon = document.getElementById('staff-stardock-pin-icon');
+            const pinLabel = document.getElementById('staff-stardock-pin-label');
+            const pinBtn = document.getElementById('btn-staff-stardock-pin');
+            const scrollWrap = document.getElementById('main-scroll-container');
+
+            clearTimeout(staffStardockHideTimer);
+
+            if (pinBox && pinIcon && pinLabel) {
+                if (isStaffStardockPinned) {
+                    pinBox.className = 'w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-sm shadow-md shadow-indigo-500/35 transition-all';
+                    pinIcon.className = 'fa-solid fa-thumbtack rotate-45 transition-transform';
+                    pinLabel.innerText = 'Đã ghim';
+                    pinLabel.className = 'text-[9px] font-extrabold text-indigo-600 dark:text-indigo-300 mt-1 whitespace-nowrap';
+                    if (pinBtn) pinBtn.title = 'Stardock đang GHIM cố định. Bấm để bật Tự động ẩn';
+                } else {
+                    pinBox.className = 'w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-slate-200/80 dark:bg-slate-700/80 text-slate-600 dark:text-slate-200 flex items-center justify-center text-sm shadow-xs transition-all';
+                    pinIcon.className = 'fa-solid fa-thumbtack transition-transform';
+                    pinLabel.innerText = 'Tự ẩn';
+                    pinLabel.className = 'text-[9px] font-extrabold text-slate-600 dark:text-slate-300 mt-1 whitespace-nowrap';
+                    if (pinBtn) pinBtn.title = 'Stardock đang TỰ ĐỘNG ẨN. Bấm để Ghim cố định';
+                }
+            }
+
+            if (scrollWrap && isCurrentUserStaff()) {
+                scrollWrap.classList.toggle('pb-28', isStaffStardockPinned);
+                scrollWrap.classList.toggle('pb-10', !isStaffStardockPinned);
+            }
+
+            if (!dock) return;
+            if (isStaffStardockPinned) {
+                dock.classList.remove('stardock-autohidden');
+                dock.classList.add('stardock-visible');
+                if (trigger) {
+                    trigger.classList.remove('trigger-visible');
+                    trigger.classList.add('trigger-hidden');
+                }
+            } else if (isCurrentUserStaff()) {
+                showStaffStardock(true);
+            }
+        }
+
+        function showStaffStardock(autoHideAfter = true) {
+            const dock = document.getElementById('staff-stardock');
+            const trigger = document.getElementById('staff-stardock-trigger');
+            if (!dock || !isCurrentUserStaff()) return;
+
+            clearTimeout(staffStardockHideTimer);
+            dock.classList.remove('stardock-autohidden');
+            dock.classList.add('stardock-visible');
+            if (trigger) {
+                trigger.classList.remove('trigger-visible');
+                trigger.classList.add('trigger-hidden');
+            }
+            if (autoHideAfter && !isStaffStardockPinned) {
+                scheduleStaffStardockHide(3200);
+            }
+        }
+
+        function hideStaffStardock() {
+            const dock = document.getElementById('staff-stardock');
+            const trigger = document.getElementById('staff-stardock-trigger');
+            if (!dock || isStaffStardockPinned || !isCurrentUserStaff()) return;
+
+            clearTimeout(staffStardockHideTimer);
+            dock.classList.remove('stardock-visible');
+            dock.classList.add('stardock-autohidden');
+            if (trigger) {
+                trigger.classList.remove('trigger-hidden');
+                trigger.classList.add('trigger-visible');
+            }
+        }
+
+        function scheduleStaffStardockHide(delayMs = 2400) {
+            if (isStaffStardockPinned || !isCurrentUserStaff()) return;
+            clearTimeout(staffStardockHideTimer);
+            staffStardockHideTimer = setTimeout(() => {
+                hideStaffStardock();
+            }, delayMs);
+        }
+
+        function handleStaffStardockMouseEnter() {
+            clearTimeout(staffStardockHideTimer);
+        }
+
+        function handleStaffStardockMouseLeave() {
+            if (!isStaffStardockPinned) {
+                scheduleStaffStardockHide(1800);
+            }
+        }
+
+        function toggleStaffStardockPin() {
+            isStaffStardockPinned = !isStaffStardockPinned;
+            localStorage.setItem('tm_staff_stardock_pinned_v1', String(isStaffStardockPinned));
+            applyStaffStardockPinState();
+            if (typeof showPushBannerToast === 'function') {
+                showPushBannerToast(isStaffStardockPinned ? 'Đã ghim cố định thanh Stardock.' : 'Đã bật chế độ tự động ẩn thanh Stardock.');
+            }
+        }
+
         function handleStaffStardockClick(tab, btnEl) {
             if (btnEl) {
                 const iconBox = btnEl.querySelector('.stardock-icon-box');
@@ -8098,9 +8345,17 @@ if (tab === 'users') renderUsers();
             } else {
                 switchTab(tab);
             }
+            if (!isStaffStardockPinned) {
+                scheduleStaffStardockHide(1800);
+            }
         }
         window.handleStaffStardockClick = handleStaffStardockClick;
         window.updateStaffStardockActive = updateStaffStardockActive;
+        window.toggleStaffStardockPin = toggleStaffStardockPin;
+        window.showStaffStardock = showStaffStardock;
+        window.hideStaffStardock = hideStaffStardock;
+        window.handleStaffStardockMouseEnter = handleStaffStardockMouseEnter;
+        window.handleStaffStardockMouseLeave = handleStaffStardockMouseLeave;
 
         // ==============================================================
         // --- HỆ THỐNG THANH TASKBAR / DOCK AUTO-HIDE KIỂU IOS ---
