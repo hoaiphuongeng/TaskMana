@@ -1830,7 +1830,8 @@
             authDomain: "taskmana-shp.firebaseapp.com",
             projectId: "taskmana-shp",
             storageBucket: "taskmana-shp.firebasestorage.app",
-appId: "1:77320945086:web:afdcbe07c674ed02820def",
+            messagingSenderId: "77320945086",
+            appId: "1:77320945086:web:afdcbe07c674ed02820def",
             measurementId: "G-5TYG8GCC2S"
         };
 
@@ -2034,7 +2035,8 @@ let highlightedStaff = {};
                         tokenOptions.vapidKey = TM_FCM_CONFIG.vapidKey.trim();
                     }
                     token = await tmMessagingInstance.getToken(tokenOptions).catch((err) => {
-                        console.warn('getToken FCM chưa có hoặc thiếu vapidKey:', err.message || err);
+                        console.warn('getToken FCM lỗi:', err.code || '', err.message || err);
+                        window._tmLastFcmError = (err.code ? `[${err.code}] ` : '') + (err.message || err);
                         return null;
                     });
                 }
@@ -2252,11 +2254,13 @@ let highlightedStaff = {};
                     return;
                 }
 
+                window._tmLastFcmError = '';
                 const token = await requestAndRegisterPushNotifications(currentUser, true);
                 if (token) {
                     showPushBannerToast('Đã bật thông báo thành công! Thiết bị này đã sẵn sàng nhận thông báo khi có việc mới.');
                 } else {
-                    showPushBannerToast('Đã cấp quyền thông báo nhưng chưa lấy được mã thiết bị FCM. Kiểm tra kết nối mạng và file sw.js rồi bấm thử lại.', true);
+                    const detail = window._tmLastFcmError ? ` (${window._tmLastFcmError})` : '';
+                    showPushBannerToast('Đã cấp quyền thông báo nhưng chưa lấy được mã thiết bị FCM' + detail + '. Kiểm tra kết nối mạng và file sw.js rồi bấm thử lại.', true);
                 }
             } catch (err) {
                 showPushBannerToast('Lỗi khi kích hoạt thông báo: ' + (err.message || err), true);
