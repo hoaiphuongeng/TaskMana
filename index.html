@@ -1929,7 +1929,7 @@ let highlightedStaff = {};
         // Cấu hình VAPID key (lấy từ Firebase Console -> Cloud Messaging -> Web Push certificates)
         // và URL webhook/Cloudflare Worker gửi FCM khi giao việc (nếu đã triển khai).
         const TM_DEFAULT_VAPID_KEY = 'BEo3SBRVj6vHqkGUebWrmpHW8ZL_v7OS6BVjFznaBQrhrUniBBA5WLdoZzWVMnwJ0NvaULBzmw4Njzs82CHWMXY';
-        const TM_DEFAULT_PUSH_WEBHOOK_URL = 'https://taskmana-fmc-push.hoaiphuong-eng.workers.dev';
+        const TM_DEFAULT_PUSH_WEBHOOK_URL = 'https://taskmana-push.hoaiphuong-eng.workers.dev';
         const TM_FCM_CONFIG = {
             vapidKey: (localStorage.getItem('tm_fcm_vapid_key') || '').trim() || TM_DEFAULT_VAPID_KEY,
             pushWebhookUrl: (localStorage.getItem('tm_fcm_push_webhook_url') || '').trim() || TM_DEFAULT_PUSH_WEBHOOK_URL
@@ -2217,6 +2217,80 @@ let highlightedStaff = {};
             }
         }
 
+        async function notifyAdminTaskCompletedPush({ taskId, title, completedById, completedByName, note, areaCategory, deadline }) {
+            const usersPool = Array.isArray(cloudUsers) ? cloudUsers : [];
+            const adminUsers = usersPool.filter(u =>
+                u &&
+                u.status !== 'INACTIVE' &&
+                (u.id === 'shp' || u.role === 'ADMIN' || u.role === 'SUPER_ADMIN') &&
+                u.id !== completedById
+            );
+
+            const tokenSet = new Set();
+            adminUsers.forEach(admin => {
+                if (isValidFcmToken(admin.fcmToken)) tokenSet.add(admin.fcmToken.trim());
+                if (admin.fcmTokens && typeof admin.fcmTokens === 'object') {
+                    Object.values(admin.fcmTokens).forEach(entry => {
+                        if (entry && isValidFcmToken(entry.token)) {
+                            tokenSet.add(entry.token.trim());
+                        }
+                    });
+                }
+            });
+
+            const tokens = Array.from(tokenSet);
+            const actorName = completedByName || 'Nhân viên';
+            const cleanNote = (note || '').trim();
+            const pushTitle = '✅ Công việc đã hoàn thành';
+            const pushBody = `${actorName} đã hoàn thành: ${title || 'Công việc'}${cleanNote ? ' • Ghi chú: ' + cleanNote.slice(0, 80) : ''}`;
+
+            const payload = {
+                type: 'task_completed',
+                targetRole: 'ADMIN',
+                taskId: taskId || '',
+                completedById: completedById || '',
+                completedByName: actorName,
+                adminIds: adminUsers.map(a => a.id),
+                tokens: tokens,
+                notification: {
+                    title: pushTitle,
+                    body: pushBody,
+                    icon: '/logo.png'
+                },
+                data: {
+                    type: 'TASK_COMPLETED',
+                    taskId: taskId || '',
+                    completedById: completedById || '',
+                    completedByName: actorName,
+                    title: pushTitle,
+                    body: pushBody,
+                    areaCategory: areaCategory || '',
+                    deadline: deadline || '',
+                    url: './index.html?tab=tasks'
+                }
+            };
+
+            try {
+                if (typeof db !== 'undefined' && db) {
+                    await db.collection('push_notifications').add({
+                        ...payload,
+                        status: tokens.length > 0 ? 'queued' : 'no_token',
+                        createdAt: Date.now()
+                    }).catch(() => {});
+                }
+            } catch (e) {}
+
+            if (tokens.length > 0 && TM_FCM_CONFIG.pushWebhookUrl && TM_FCM_CONFIG.pushWebhookUrl.trim() !== '') {
+                try {
+                    await fetch(TM_FCM_CONFIG.pushWebhookUrl.trim(), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    }).catch(() => {});
+                } catch (e) {}
+            }
+        }
+
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.addEventListener('message', (event) => {
                 const msg = event.data;
@@ -2381,6 +2455,7 @@ let highlightedStaff = {};
         window.requestAndRegisterPushNotifications = requestAndRegisterPushNotifications;
         window.saveFcmTokenToUser = saveFcmTokenToUser;
         window.notifyAssignedTaskPush = notifyAssignedTaskPush;
+        window.notifyAdminTaskCompletedPush = notifyAdminTaskCompletedPush;
         window.handleEnablePushButtonClick = handleEnablePushButtonClick;
         window.updatePushNotificationUiStatus = updatePushNotificationUiStatus;
 
@@ -2640,21 +2715,44 @@ let highlightedStaff = {};
             }
 
             try {
+                const wasCompleted = task.status === 'Đã Hoàn Thành' || task.progress === 100;
+                const isNowCompleted = newStatus === 'Đã Hoàn Thành' || newProgress === 100;
+                const updaterId = currentUser ? currentUser.id : '';
+                const updaterName = currentUser ? (currentUser.nickname || currentUser.name) : 'Người dùng';
+                const nowTs = Date.now();
+
                 task.progress = newProgress;
                 task.status = newStatus;
-                await db.collection('tasks').doc(taskId).set({
+                const updateDoc = {
                     progress: newProgress,
                     status: newStatus,
-                    updatedAt: Date.now()
-                }, { merge: true });
+                    updatedAt: nowTs
+                };
+                if (isNowCompleted && !wasCompleted) {
+                    updateDoc.completedById = updaterId;
+                    updateDoc.completedByName = updaterName;
+                    updateDoc.completedAt = nowTs;
+                }
 
-                const updaterName = currentUser ? (currentUser.nickname || currentUser.name) : 'Người dùng';
-await addLog(`Cập nhật tiến độ: ${taskTitle} (${newProgress}%)`);
-const completedTitle = newStatus === 'Đã Hoàn Thành' || newProgress === 100 ? taskTitle : '';
-pendingProgressUpdate = null;
+                await db.collection('tasks').doc(taskId).set(updateDoc, { merge: true });
+
+                addLog(`Cập nhật tiến độ: ${taskTitle} (${newProgress}%)`).catch(() => {});
+                const completedTitle = isNowCompleted ? taskTitle : '';
+                pendingProgressUpdate = null;
                 closeProgressConfirmModal(false);
                 if (completedTitle) {
                     playTaskCompletionCelebration(completedTitle);
+                }
+                if (isNowCompleted && !wasCompleted) {
+                    Promise.resolve(notifyAdminTaskCompletedPush({
+                        taskId,
+                        title: taskTitle,
+                        completedById: updaterId,
+                        completedByName: updaterName,
+                        note: task.note || '',
+                        areaCategory: getTaskArea(task),
+                        deadline: task.deadline || ''
+                    })).catch(err => console.warn('notifyAdminTaskCompletedPush notice:', err));
                 }
                 renderTasks();
                 renderDashboard();
@@ -3759,6 +3857,7 @@ let firestoreUnsubscribers = [];
         const appStartTime = Date.now();
         const initialTaskIds = new Set();
         const _tmNotifiedTaskIds = new Set();
+        const _tmNotifiedCompletedKeys = new Set();
         let _tmLastServerResyncTs = 0;
         let _tmResyncInFlight = false;
 
@@ -3998,6 +4097,41 @@ let firestoreUnsubscribers = [];
                                     data: { url: './index.html?tab=tasks', taskId: docId }
                                 }).catch(() => {});
                             }).catch(() => {});
+                        }
+                    }
+                    if (
+                        isTaskSyncInitialized &&
+                        isFromServer &&
+                        change.type === 'modified' &&
+                        tData.status === 'Đã Hoàn Thành' &&
+                        tData.completedAt &&
+                        tData.completedAt >= appStartTime - 15000 &&
+                        typeof isUserAdmin === 'function' &&
+                        isUserAdmin() &&
+                        currentUser &&
+                        tData.completedById !== currentUser.id
+                    ) {
+                        const compKey = `${docId}_${tData.completedAt}`;
+                        if (!_tmNotifiedCompletedKeys.has(compKey)) {
+                            _tmNotifiedCompletedKeys.add(compKey);
+                            const notifTitle = '✅ Công việc đã hoàn thành';
+                            const actorName = tData.completedByName || 'Nhân viên';
+                            const notifBody = `${actorName} đã hoàn thành: ${tData.title || 'Công việc'}`;
+                            if (typeof showPushBannerToast === 'function') {
+                                showPushBannerToast(`${notifTitle} — ${notifBody}`);
+                            }
+                            if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && navigator.serviceWorker) {
+                                navigator.serviceWorker.ready.then(reg => {
+                                    reg.showNotification(notifTitle, {
+                                        body: notifBody,
+                                        icon: '/logo.png',
+                                        badge: '/logo.png',
+                                        tag: 'task-done-' + docId,
+                                        renotify: true,
+                                        data: { url: './index.html?tab=tasks', taskId: docId }
+                                    }).catch(() => {});
+                                }).catch(() => {});
+                            }
                         }
                     }
                     initialTaskIds.add(docId);
@@ -6296,18 +6430,40 @@ return;
                 status = 'Đã Hoàn Thành';
             }
 
+            const wasCompleted = task.status === 'Đã Hoàn Thành' || task.progress === 100;
+            const isNowCompleted = status === 'Đã Hoàn Thành' || progress === 100;
+            const updaterId = currentUser ? currentUser.id : '';
             const updaterName = currentUser ? (currentUser.nickname || currentUser.name) : 'Nhân viên';
+            const nowTs = Date.now();
 
-            await db.collection('tasks').doc(taskId).set({ 
+            const updateDoc = { 
                 status, 
                 progress, 
                 note,
-                updatedAt: Date.now()
-            }, { merge: true });
-await addLog(`Cập nhật tiến độ công việc: ${task.title} (${progress}%)`);
+                updatedAt: nowTs
+            };
+            if (isNowCompleted && !wasCompleted) {
+                updateDoc.completedById = updaterId;
+                updateDoc.completedByName = updaterName;
+                updateDoc.completedAt = nowTs;
+            }
+
+            await db.collection('tasks').doc(taskId).set(updateDoc, { merge: true });
+            addLog(`Cập nhật tiến độ công việc: ${task.title} (${progress}%)`).catch(() => {});
             closeStaffUpdateModal();
-            if (status === 'Đã Hoàn Thành' || progress === 100) {
+            if (isNowCompleted) {
                 playTaskCompletionCelebration(task.title);
+            }
+            if (isNowCompleted && !wasCompleted) {
+                Promise.resolve(notifyAdminTaskCompletedPush({
+                    taskId,
+                    title: task.title,
+                    completedById: updaterId,
+                    completedByName: updaterName,
+                    note,
+                    areaCategory: getTaskArea(task),
+                    deadline: task.deadline || ''
+                })).catch(err => console.warn('notifyAdminTaskCompletedPush notice:', err));
             }
 }
 
