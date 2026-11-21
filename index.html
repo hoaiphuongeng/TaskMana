@@ -1848,7 +1848,17 @@
         } catch(e) {}
         const db = firebase.firestore();
         try {
-            db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+            db.settings({
+                ignoreUndefinedProperties: true,
+                experimentalAutoDetectLongPolling: true,
+                cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
+            });
+        } catch(e) {
+            console.warn("Firestore settings notice:", e.message || e);
+        }
+        let _tmPersistenceReadyPromise = Promise.resolve();
+        try {
+            _tmPersistenceReadyPromise = db.enablePersistence({ synchronizeTabs: true }).catch(err => {
                 console.warn("Firestore offline persistence notice:", err.code);
             });
         } catch(e) {}
@@ -3742,24 +3752,116 @@ let firestoreUnsubscribers = [];
         let isTaskSyncInitialized = false;
         const appStartTime = Date.now();
         const initialTaskIds = new Set();
+        const _tmNotifiedTaskIds = new Set();
+        let _tmLastServerResyncTs = 0;
+        let _tmResyncInFlight = false;
 
         function forceReconnectFirestore() {
-            if (typeof db === 'undefined' || !db) return;
-            db.enableNetwork().catch(err => {
+            if (typeof db === 'undefined' || !db) return Promise.resolve();
+            return db.enableNetwork().catch(err => {
                 console.warn("Firestore enableNetwork notice:", err.message || err);
             });
         }
 
+        async function syncAllCollectionsFromServer(showToast = false) {
+            if (typeof db === 'undefined' || !db || !navigator.onLine) return;
+            const now = Date.now();
+            if (!showToast && (now - _tmLastServerResyncTs < 15000)) return;
+            if (_tmResyncInFlight) return;
+
+            _tmResyncInFlight = true;
+            _tmLastServerResyncTs = now;
+            try {
+                await forceReconnectFirestore();
+                const [usersSnap, tasksSnap, schedSnap] = await Promise.all([
+                    db.collection("users").get({ source: 'server' }).catch(() => null),
+                    db.collection("tasks").get({ source: 'server' }).catch(() => null),
+                    db.collection("schedules").get({ source: 'server' }).catch(() => null)
+                ]);
+
+                if (usersSnap && !usersSnap.empty) {
+                    const freshUsers = [];
+                    usersSnap.forEach(doc => {
+                        const data = doc.data() || {};
+                        freshUsers.push({
+                            ...data,
+                            id: doc.id,
+                            name: String(data.name || data.nickname || data.phone || doc.id),
+                            phone: data.phone ? String(data.phone) : '',
+                            role: data.role || 'USER',
+                            status: data.status || 'ACTIVE'
+                        });
+                    });
+                    if (freshUsers.length > 0) {
+                        cloudUsers = freshUsers;
+                        populateAssignees();
+                        populateDepartmentFilters();
+                        renderUsers();
+                    }
+                }
+
+                if (tasksSnap) {
+                    const freshTasks = [];
+                    tasksSnap.forEach(doc => {
+                        initialTaskIds.add(doc.id);
+                        freshTasks.push({ id: doc.id, ...doc.data() });
+                    });
+                    freshTasks.sort((a, b) => {
+                        const ta = a.timestamp || (a.createdAt ? Date.parse(a.createdAt) : 0) || 0;
+                        const tb = b.timestamp || (b.createdAt ? Date.parse(b.createdAt) : 0) || 0;
+                        return tb - ta;
+                    });
+                    cloudTasks = freshTasks;
+                    renderTasks();
+                    renderDashboard();
+                }
+
+                if (schedSnap) {
+                    const freshSchedules = {};
+                    schedSnap.forEach(doc => { freshSchedules[doc.id] = doc.data(); });
+                    cloudSchedules = freshSchedules;
+                    renderSchedule();
+                    renderShiftStatistics();
+                }
+
+                if (showToast && typeof showPushBannerToast === 'function') {
+                    showPushBannerToast('Đã đồng bộ dữ liệu mới nhất từ Firebase.');
+                }
+            } catch (err) {
+                console.warn('syncAllCollectionsFromServer notice:', err.message || err);
+            } finally {
+                _tmResyncInFlight = false;
+            }
+        }
+        window.syncAllCollectionsFromServer = syncAllCollectionsFromServer;
+
         window.addEventListener('online', () => {
-            forceReconnectFirestore();
-            initOptimizedListeners(true);
+            forceReconnectFirestore().then(() => {
+                initOptimizedListeners(true);
+                syncAllCollectionsFromServer(false);
+            });
         });
 
-        function initOptimizedListeners(forceReset = false) {
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                syncAllCollectionsFromServer(false);
+            }
+        });
+
+        window.addEventListener('pageshow', (e) => {
+            if (e.persisted) {
+                initOptimizedListeners(true);
+                syncAllCollectionsFromServer(false);
+            }
+        });
+
+        async function initOptimizedListeners(forceReset = false) {
             if (typeof db === 'undefined' || !db) {
                 hideLoading();
                 return;
             }
+
+            try { await _tmPersistenceReadyPromise; } catch (e) {}
 
             if (forceReset && firestoreUnsubscribers.length > 0) {
                 firestoreUnsubscribers.forEach(unsub => {
@@ -3851,17 +3953,56 @@ let firestoreUnsubscribers = [];
 
             const unsubTasks = db.collection("tasks").onSnapshot({ includeMetadataChanges: true }, snapshot => {
                 const nextTasks = [];
+                const isFromServer = !snapshot.metadata.fromCache;
                 snapshot.docChanges().forEach(change => {
-                    initialTaskIds.add(change.doc.id);
+                    const docId = change.doc.id;
+                    const tData = change.doc.data() || {};
+                    if (
+                        isTaskSyncInitialized &&
+                        isFromServer &&
+                        change.type === 'added' &&
+                        !initialTaskIds.has(docId) &&
+                        !_tmNotifiedTaskIds.has(docId) &&
+                        currentUser &&
+                        tData.assigneeId === currentUser.id &&
+                        tData.creatorId !== currentUser.id &&
+                        (!tData.timestamp || tData.timestamp >= appStartTime - 15000)
+                    ) {
+                        _tmNotifiedTaskIds.add(docId);
+                        const notifTitle = tData.priority === 'Urgent'
+                            ? '🔥 Công việc KHẨN CẤP mới được giao'
+                            : '📋 Bạn có công việc mới được giao';
+                        const notifBody = `${tData.title || 'Công việc mới'}${tData.deadline ? ' • Hạn: ' + tData.deadline : ''}`;
+                        if (typeof showPushBannerToast === 'function') {
+                            showPushBannerToast(`${notifTitle}: ${notifBody}`);
+                        }
+                        if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && navigator.serviceWorker) {
+                            navigator.serviceWorker.ready.then(reg => {
+                                reg.showNotification(notifTitle, {
+                                    body: notifBody,
+                                    icon: '/logo.png',
+                                    badge: '/logo.png',
+                                    tag: 'task-' + docId,
+                                    renotify: true,
+                                    data: { url: './index.html?tab=tasks', taskId: docId }
+                                }).catch(() => {});
+                            }).catch(() => {});
+                        }
+                    }
+                    initialTaskIds.add(docId);
                 });
-                isTaskSyncInitialized = true;
+                if (isFromServer || !snapshot.empty) {
+                    isTaskSyncInitialized = true;
+                }
                 snapshot.forEach(doc => nextTasks.push({ id: doc.id, ...doc.data() }));
                 nextTasks.sort((a, b) => {
                     const ta = a.timestamp || (a.createdAt ? Date.parse(a.createdAt) : 0) || 0;
                     const tb = b.timestamp || (b.createdAt ? Date.parse(b.createdAt) : 0) || 0;
                     return tb - ta;
                 });
-                cloudTasks = nextTasks;
+                if (!snapshot.metadata.fromCache || nextTasks.length > 0 || cloudTasks.length === 0) {
+                    cloudTasks = nextTasks;
+                }
                 renderTasks();
                 renderDashboard();
             }, err => {
@@ -3873,8 +4014,12 @@ let firestoreUnsubscribers = [];
             });
 
             const unsubSchedules = db.collection("schedules").onSnapshot({ includeMetadataChanges: true }, snapshot => {
-                cloudSchedules = {};
-                snapshot.forEach(doc => { cloudSchedules[doc.id] = doc.data(); });
+                if (snapshot.metadata.fromCache && snapshot.empty && Object.keys(cloudSchedules).length > 0) {
+                    return;
+                }
+                const nextSchedules = {};
+                snapshot.forEach(doc => { nextSchedules[doc.id] = doc.data(); });
+                cloudSchedules = nextSchedules;
                 renderSchedule();
                 renderShiftStatistics();
             }, err => {
@@ -6830,7 +6975,9 @@ closeShiftPickerModal();
             }
 
             try {
-                await db.collection('schedules').doc(dateStr).set(cloudSchedules[dateStr]);
+                const atomicShiftPatch = {};
+                atomicShiftPatch[userId] = newShift ? newShift : firebase.firestore.FieldValue.delete();
+                await db.collection('schedules').doc(dateStr).set(atomicShiftPatch, { merge: true });
 
                 const userNameDisp = user ? (user.name || userId) : userId;
                 const oldText = oldShift ? `[${oldShift}]` : 'Chưa phân ca';

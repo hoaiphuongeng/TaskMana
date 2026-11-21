@@ -54,7 +54,12 @@ self.addEventListener('push', event => {
   try {
     payload = event.data ? event.data.json() : {};
   } catch (e) {
-    payload = { notification: { title: 'Taskmana', body: event.data ? event.data.text() : 'Bạn có công việc mới.' } };
+    payload = {
+      notification: {
+        title: 'Taskmana',
+        body: event.data ? event.data.text() : 'Bạn có công việc mới.'
+      }
+    };
   }
 
   const notif = payload.notification || {};
@@ -64,7 +69,7 @@ self.addEventListener('push', event => {
     body: notif.body || data.body || 'Mở Taskmana để xem chi tiết.',
     icon: notif.icon || data.icon || '/logo.png',
     badge: '/logo.png',
-    tag: data.taskId || ('bg-task-' + Date.now()),
+    tag: data.taskId ? ('task-' + data.taskId) : ('bg-task-' + Date.now()),
     renotify: true,
     vibrate: [200, 100, 200],
     data: {
@@ -76,7 +81,7 @@ self.addEventListener('push', event => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Mở ứng dụng và chuyển tới đúng công việc khi bấm vào thông báo
+// Mở app và chuyển tới đúng công việc khi bấm vào thông báo
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   const notifData = event.notification.data || {};
