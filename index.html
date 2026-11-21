@@ -3657,9 +3657,10 @@ function initOptimizedListeners() {
                 return;
             }
 
-            db.collection("users").onSnapshot(snapshot => {
-                cloudUsers = [];
-                snapshot.forEach(doc => cloudUsers.push({ id: doc.id, ...doc.data() }));
+            db.collection("users").onSnapshot({ includeMetadataChanges: true }, snapshot => {
+                const nextUsers = [];
+                snapshot.forEach(doc => nextUsers.push({ id: doc.id, ...doc.data() }));
+                cloudUsers = nextUsers;
                 if (cloudUsers.length === 0) {
                     defaultUsers.forEach(u => {
                         db.collection("users").doc(u.id).set(u).catch(() => {});
@@ -3679,11 +3680,13 @@ function initOptimizedListeners() {
                             return;
                         }
                         updatedMe.password = updatedMe.password || currentUser.password;
+                        const prevToken = currentUser.fcmToken || '';
                         currentUser = updatedMe;
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(currentUser));
-            requestAndRegisterPushNotifications(currentUser, true);
                         updateUserSidebarUI();
-                requestAndRegisterPushNotifications(currentUser, false);
+                        if (!currentUser.fcmToken && !prevToken) {
+                            requestAndRegisterPushNotifications(currentUser, false);
+                        }
                     } else if (currentUser.id !== 'shp') {
                         handleLogout();
                     }
@@ -3701,13 +3704,15 @@ function initOptimizedListeners() {
                 hideLoading();
             });
 
-            db.collection("tasks").orderBy("createdAt", "desc").onSnapshot(snapshot => {
-                cloudTasks = [];
+            db.collection("tasks").orderBy("timestamp", "desc").onSnapshot({ includeMetadataChanges: true }, snapshot => {
+                const nextTasks = [];
                 snapshot.docChanges().forEach(change => {
                     initialTaskIds.add(change.doc.id);
                 });
                 isTaskSyncInitialized = true;
-                snapshot.forEach(doc => cloudTasks.push({ id: doc.id, ...doc.data() }));
+                snapshot.forEach(doc => nextTasks.push({ id: doc.id, ...doc.data() }));
+                nextTasks.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                cloudTasks = nextTasks;
                 renderTasks();
                 renderDashboard();
             }, err => {
@@ -6200,13 +6205,21 @@ return;
                 });
 await addLog(`Cập nhật công việc: ${title}`);
 } else {
-                const createdTaskRef = await db.collection('tasks').add({
+                const nowTs = Date.now();
+                const createdObj = {
                     title, description, areaCategory, priority, assigneeId, startDate, deadline,
-                    status: 'Chưa Thực Hiện', progress: 0, 
+                    status: 'Chưa Thực Hiện', progress: 0,
                     creatorId: currentUser ? currentUser.id : 'shp',
                     createdAt: new Date().toISOString().split('T')[0],
-                    timestamp: Date.now()
-                });
+                    timestamp: nowTs
+                };
+                const createdTaskRef = await db.collection('tasks').add(createdObj);
+                if (!cloudTasks.some(t => t.id === createdTaskRef.id)) {
+                    cloudTasks = [{ id: createdTaskRef.id, ...createdObj }, ...cloudTasks];
+                }
+                closeTaskModal();
+                renderTasks();
+                renderDashboard();
                 await notifyAssignedTaskPush({
                     taskId: createdTaskRef.id,
                     title,
