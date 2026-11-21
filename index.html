@@ -1939,32 +1939,61 @@ let highlightedStaff = {};
             }
         }
 
+        let _tmLastSavedTokenKey = '';
+        let _tmSavingTokenPromise = null;
+
         async function saveFcmTokenToUser(token, userObj = null) {
             const targetUser = userObj || currentUser;
             if (!token || !targetUser || !targetUser.id || typeof db === 'undefined' || !db) return;
+
+            const saveKey = `${targetUser.id}::${token}`;
+            const alreadyInUser =
+                targetUser.fcmToken === token &&
+                targetUser.fcmTokens &&
+                targetUser.fcmTokens[getDeviceIdForFcm()] &&
+                targetUser.fcmTokens[getDeviceIdForFcm()].token === token;
+
+            if (alreadyInUser || _tmLastSavedTokenKey === saveKey) {
+                return;
+            }
+            if (_tmSavingTokenPromise) {
+                return _tmSavingTokenPromise;
+            }
 
             const deviceId = getDeviceIdForFcm();
             const ua = navigator.userAgent || '';
             const isIOS = /iPad|iPhone|iPod/.test(ua);
             const isAndroid = /Android/.test(ua);
             const platform = isIOS ? 'ios' : (isAndroid ? 'android' : 'web');
+            const nowTs = Date.now();
 
-            try {
-                await db.collection('users').doc(targetUser.id).set({
-                    fcmToken: token,
-                    fcmTokens: {
-                        [deviceId]: {
-                            token: token,
-                            platform: platform,
-                            userAgent: ua.slice(0, 140),
-                            updatedAt: Date.now()
-                        }
-                    },
-                    fcmUpdatedAt: Date.now()
-                }, { merge: true });
-            } catch (err) {
-                console.warn('Lỗi lưu FCM token lên Firestore:', err.message || err);
-            }
+            _tmSavingTokenPromise = (async () => {
+                try {
+                    await db.collection('users').doc(targetUser.id).set({
+                        fcmToken: token,
+                        fcmTokens: {
+                            [deviceId]: {
+                                token: token,
+                                platform: platform,
+                                userAgent: ua.slice(0, 140),
+                                updatedAt: nowTs
+                            }
+                        },
+                        fcmUpdatedAt: nowTs
+                    }, { merge: true });
+                    _tmLastSavedTokenKey = saveKey;
+                    if (currentUser && currentUser.id === targetUser.id) {
+                        currentUser.fcmToken = token;
+                        currentUser.fcmUpdatedAt = nowTs;
+                    }
+                } catch (err) {
+                    console.warn('Lỗi lưu FCM token lên Firestore:', err.message || err);
+                } finally {
+                    _tmSavingTokenPromise = null;
+                }
+            })();
+
+            return _tmSavingTokenPromise;
         }
 
         function initForegroundFcmListener() {
@@ -1998,9 +2027,26 @@ let highlightedStaff = {};
             }
         }
 
+        let _tmRegisterInFlight = null;
+
         async function requestAndRegisterPushNotifications(userObj = null, interactive = false) {
             const targetUser = userObj || currentUser;
             if (!targetUser || !targetUser.id) return null;
+
+            if (!interactive && tmCurrentFcmToken && targetUser.fcmToken === tmCurrentFcmToken) {
+                return tmCurrentFcmToken;
+            }
+            if (_tmRegisterInFlight) {
+                return _tmRegisterInFlight;
+            }
+
+            _tmRegisterInFlight = _runRegisterPushNotifications(targetUser, interactive).finally(() => {
+                _tmRegisterInFlight = null;
+            });
+            return _tmRegisterInFlight;
+        }
+
+        async function _runRegisterPushNotifications(targetUser, interactive = false) {
 
             if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) {
                 return null;
@@ -2058,6 +2104,8 @@ let highlightedStaff = {};
                 console.warn('Lỗi đăng ký quyền Notification / FCM token:', err.message || err);
                 return null;
             }
+        }
+
         }
 
         async function notifyAssignedTaskPush({ taskId, title, description, assigneeId, startDate, deadline, priority, areaCategory }) {
