@@ -3657,11 +3657,13 @@ function initOptimizedListeners() {
                 return;
             }
 
-            db.collection("users").onSnapshot({ includeMetadataChanges: true }, snapshot => {
+            let _fcmAutoCheckDoneForUser = null;
+            db.collection("users").onSnapshot(snapshot => {
                 const nextUsers = [];
                 snapshot.forEach(doc => nextUsers.push({ id: doc.id, ...doc.data() }));
-                cloudUsers = nextUsers;
-                if (cloudUsers.length === 0) {
+                if (nextUsers.length > 0) {
+                    cloudUsers = nextUsers;
+                } else if (cloudUsers.length === 0) {
                     defaultUsers.forEach(u => {
                         db.collection("users").doc(u.id).set(u).catch(() => {});
                     });
@@ -3680,14 +3682,14 @@ function initOptimizedListeners() {
                             return;
                         }
                         updatedMe.password = updatedMe.password || currentUser.password;
-                        const prevToken = currentUser.fcmToken || '';
                         currentUser = updatedMe;
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(currentUser));
                         updateUserSidebarUI();
-                        if (!currentUser.fcmToken && !prevToken) {
+                        if (!currentUser.fcmToken && _fcmAutoCheckDoneForUser !== currentUser.id) {
+                            _fcmAutoCheckDoneForUser = currentUser.id;
                             requestAndRegisterPushNotifications(currentUser, false);
                         }
-                    } else if (currentUser.id !== 'shp') {
+                    } else if (!snapshot.metadata.fromCache && currentUser.id !== 'shp' && !defaultUsers.some(d => d.id === currentUser.id)) {
                         handleLogout();
                     }
                 }
@@ -3704,14 +3706,18 @@ function initOptimizedListeners() {
                 hideLoading();
             });
 
-            db.collection("tasks").orderBy("timestamp", "desc").onSnapshot({ includeMetadataChanges: true }, snapshot => {
+            db.collection("tasks").onSnapshot(snapshot => {
                 const nextTasks = [];
                 snapshot.docChanges().forEach(change => {
                     initialTaskIds.add(change.doc.id);
                 });
                 isTaskSyncInitialized = true;
                 snapshot.forEach(doc => nextTasks.push({ id: doc.id, ...doc.data() }));
-                nextTasks.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                nextTasks.sort((a, b) => {
+                    const ta = a.timestamp || (a.createdAt ? Date.parse(a.createdAt) : 0) || 0;
+                    const tb = b.timestamp || (b.createdAt ? Date.parse(b.createdAt) : 0) || 0;
+                    return tb - ta;
+                });
                 cloudTasks = nextTasks;
                 renderTasks();
                 renderDashboard();
@@ -3779,12 +3785,17 @@ function initOptimizedListeners() {
         }
 
         async function addLog(action) {
-            await db.collection('logs').add({
-                timeFormatted: new Date().toLocaleString('vi-VN'),
-                timestamp: Date.now(),
-                user: currentUser ? (currentUser.nickname || currentUser.name) : 'Hệ thống',
-                action
-            });
+            try {
+                if (typeof db === 'undefined' || !db) return;
+                await db.collection('logs').add({
+                    timeFormatted: new Date().toLocaleString('vi-VN'),
+                    timestamp: Date.now(),
+                    user: currentUser ? (currentUser.nickname || currentUser.name) : 'Hệ thống',
+                    action
+                });
+            } catch (e) {
+                console.warn('addLog notice:', e.message || e);
+            }
         }
 
         function checkAuth() {
