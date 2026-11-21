@@ -3717,27 +3717,56 @@ return;
             if (el) el.innerText = new Date().toLocaleString('vi-VN');
         }
 
-const appStartTime = Date.now();
+let firestoreUnsubscribers = [];
+        let isTaskSyncInitialized = false;
+        const appStartTime = Date.now();
         const initialTaskIds = new Set();
-let isTaskSyncInitialized = false;
-function initOptimizedListeners() {
+
+        function forceReconnectFirestore() {
+            if (typeof db === 'undefined' || !db) return;
+            db.enableNetwork().catch(err => {
+                console.warn("Firestore enableNetwork notice:", err.message || err);
+            });
+        }
+
+        window.addEventListener('online', () => {
+            forceReconnectFirestore();
+            initOptimizedListeners(true);
+        });
+
+        function initOptimizedListeners(forceReset = false) {
             if (typeof db === 'undefined' || !db) {
                 hideLoading();
                 return;
             }
 
+            if (forceReset && firestoreUnsubscribers.length > 0) {
+                firestoreUnsubscribers.forEach(unsub => {
+                    try { if (typeof unsub === 'function') unsub(); } catch (e) {}
+                });
+                firestoreUnsubscribers = [];
+            }
+
+            if (firestoreUnsubscribers.length > 0) return;
+
+            forceReconnectFirestore();
             let _fcmAutoCheckDoneForUser = null;
-            db.collection("users").onSnapshot(snapshot => {
+
+            const unsubUsers = db.collection("users").onSnapshot({ includeMetadataChanges: true }, snapshot => {
                 const nextUsers = [];
                 snapshot.forEach(doc => nextUsers.push({ id: doc.id, ...doc.data() }));
+
                 if (nextUsers.length > 0) {
                     cloudUsers = nextUsers;
-                } else if (cloudUsers.length === 0) {
+                } else if (!snapshot.metadata.fromCache && cloudUsers.length === 0) {
                     defaultUsers.forEach(u => {
-                        db.collection("users").doc(u.id).set(u).catch(() => {});
+                        db.collection("users").doc(u.id).set(u).catch(err => {
+                            console.error("Không thể khởi tạo users mặc định trên Firestore:", err.message);
+                        });
                     });
                     cloudUsers = [...defaultUsers];
                 }
+
                 populateAssignees();
                 populateDepartmentFilters();
                 renderUsers();
@@ -3756,7 +3785,9 @@ function initOptimizedListeners() {
                         updateUserSidebarUI();
                         if (!currentUser.fcmToken && _fcmAutoCheckDoneForUser !== currentUser.id) {
                             _fcmAutoCheckDoneForUser = currentUser.id;
-                            requestAndRegisterPushNotifications(currentUser, false);
+                            if (typeof requestAndRegisterPushNotifications === 'function') {
+                                requestAndRegisterPushNotifications(currentUser, false);
+                            }
                         }
                     } else if (!snapshot.metadata.fromCache && currentUser.id !== 'shp' && !defaultUsers.some(d => d.id === currentUser.id)) {
                         handleLogout();
@@ -3764,7 +3795,10 @@ function initOptimizedListeners() {
                 }
                 hideLoading();
             }, err => {
-                console.warn("Firestore users sync notice:", err.message || err);
+                console.error("Lỗi đồng bộ users Firestore:", err.code, err.message);
+                if (typeof showPushBannerToast === 'function') {
+                    showPushBannerToast("Lỗi đồng bộ dữ liệu nhân sự: " + err.message, true);
+                }
                 if (!Array.isArray(cloudUsers) || cloudUsers.length === 0) {
                     cloudUsers = [...defaultUsers];
                     populateAssignees();
@@ -3775,7 +3809,7 @@ function initOptimizedListeners() {
                 hideLoading();
             });
 
-            db.collection("tasks").onSnapshot(snapshot => {
+            const unsubTasks = db.collection("tasks").onSnapshot({ includeMetadataChanges: true }, snapshot => {
                 const nextTasks = [];
                 snapshot.docChanges().forEach(change => {
                     initialTaskIds.add(change.doc.id);
@@ -3791,20 +3825,23 @@ function initOptimizedListeners() {
                 renderTasks();
                 renderDashboard();
             }, err => {
-                console.warn("Firestore tasks sync notice:", err.message || err);
+                console.error("Lỗi đồng bộ tasks Firestore:", err.code, err.message);
+                if (typeof showPushBannerToast === 'function') {
+                    showPushBannerToast("Lỗi đồng bộ công việc: " + err.message, true);
+                }
                 hideLoading();
             });
 
-            db.collection("schedules").onSnapshot(snapshot => {
+            const unsubSchedules = db.collection("schedules").onSnapshot({ includeMetadataChanges: true }, snapshot => {
                 cloudSchedules = {};
                 snapshot.forEach(doc => { cloudSchedules[doc.id] = doc.data(); });
                 renderSchedule();
                 renderShiftStatistics();
             }, err => {
-                console.warn("Firestore schedules sync notice:", err.message || err);
+                console.error("Lỗi đồng bộ schedules Firestore:", err.code, err.message);
             });
 
-            db.collection("app_settings").doc("embedded_web_tool").onSnapshot(doc => {
+            const unsubWebTool = db.collection("app_settings").doc("embedded_web_tool").onSnapshot(doc => {
                 if (doc.exists) {
                     const data = doc.data();
                     if (data && data.url) {
@@ -3824,7 +3861,7 @@ function initOptimizedListeners() {
                 console.warn("Firestore embedded_web_tool sync notice:", err.message || err);
             });
 
-            db.collection("app_settings").doc("integrated_websites").onSnapshot(doc => {
+            const unsubWebsites = db.collection("app_settings").doc("integrated_websites").onSnapshot(doc => {
                 if (doc.exists) {
                     const data = doc.data();
                     if (data && Array.isArray(data.websites)) {
@@ -3843,6 +3880,8 @@ function initOptimizedListeners() {
             }, err => {
                 console.warn("Firestore integrated_websites sync notice:", err.message || err);
             });
+
+            firestoreUnsubscribers.push(unsubUsers, unsubTasks, unsubSchedules, unsubWebTool, unsubWebsites);
         }
 
         function debounce(func, wait) {
