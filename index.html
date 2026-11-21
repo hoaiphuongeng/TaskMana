@@ -2106,8 +2106,6 @@ let highlightedStaff = {};
             }
         }
 
-        }
-
         async function notifyAssignedTaskPush({ taskId, title, description, assigneeId, startDate, deadline, priority, areaCategory }) {
             if (!assigneeId) return;
             const assignee = Array.isArray(cloudUsers) ? cloudUsers.find(u => u.id === assigneeId) : null;
