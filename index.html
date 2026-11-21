@@ -1929,11 +1929,7 @@ let highlightedStaff = {};
         // Cấu hình VAPID key (lấy từ Firebase Console -> Cloud Messaging -> Web Push certificates)
         // và URL webhook/Cloudflare Worker gửi FCM khi giao việc (nếu đã triển khai).
         const TM_DEFAULT_VAPID_KEY = 'BEo3SBRVj6vHqkGUebWrmpHW8ZL_v7OS6BVjFznaBQrhrUniBBA5WLdoZzWVMnwJ0NvaULBzmw4Njzs82CHWMXY';
-        // ==================== HỆ THỐNG THÔNG BÁO PUSH FCM & LƯU TOKEN ====================
-        // Cấu hình VAPID key (lấy từ Firebase Console -> Cloud Messaging -> Web Push certificates)
-        // và URL webhook/Cloudflare Worker gửi FCM khi giao việc (nếu đã triển khai).
-        const TM_DEFAULT_VAPID_KEY = 'BEo3SBRVj6vHqkGUebWrmpHW8ZL_v7OS6BVjFznaBQrhrUniBBA5WLdoZzWVMnwJ0NvaULBzmw4Njzs82CHWMXY';
-        const TM_DEFAULT_PUSH_WEBHOOK_URL = 'https://taskmana-fmc-push.hoaiphuong-eng.workers.dev'; // Đổi lại đúng URL Worker bạn đã deploy
+        const TM_DEFAULT_PUSH_WEBHOOK_URL = 'https://taskmana-fmc-push.hoaiphuong-eng.workers.dev';
         const TM_FCM_CONFIG = {
             vapidKey: (localStorage.getItem('tm_fcm_vapid_key') || '').trim() || TM_DEFAULT_VAPID_KEY,
             pushWebhookUrl: (localStorage.getItem('tm_fcm_push_webhook_url') || '').trim() || TM_DEFAULT_PUSH_WEBHOOK_URL
@@ -3452,24 +3448,29 @@ const defaultUsers = [
 ];
 
         window.addEventListener('DOMContentLoaded', () => {
-            initOptimizedListeners();
-            populateDepartmentFilters();
-            renderShiftStatistics();
-            renderDashboard();
-            renderShiftCodesCatalog();
-            initMenubarAutohide();
-            initSidebarAutohide();
-            initIosDock();
-            initThemeMode();
+            const safeRun = (fn) => {
+                try { if (typeof fn === 'function') fn(); } catch (e) { console.warn('Init step notice:', e); }
+            };
+            safeRun(initThemeMode);
+            safeRun(checkAuth);
+            safeRun(initOptimizedListeners);
+            safeRun(populateDepartmentFilters);
+            safeRun(renderShiftStatistics);
+            safeRun(renderDashboard);
+            safeRun(renderShiftCodesCatalog);
+            safeRun(initMenubarAutohide);
+            safeRun(initSidebarAutohide);
+            safeRun(initIosDock);
             
-            const currentMonday = getMondayOfWeekDate(new Date());
-            const dp = document.getElementById('schedule-date-picker');
-            if (dp) dp.value = formatLocalDate(currentMonday);
+            try {
+                const currentMonday = getMondayOfWeekDate(new Date());
+                const dp = document.getElementById('schedule-date-picker');
+                if (dp) dp.value = formatLocalDate(currentMonday);
+            } catch (e) {}
 
-            checkAuth();
             setInterval(updateClock, 1000);
-            updateClock();
-            autoDetectCurrentShift();
+            safeRun(updateClock);
+            safeRun(autoDetectCurrentShift);
 
             const searchInput = document.getElementById('task-search');
             if (searchInput) {
@@ -3866,7 +3867,12 @@ let firestoreUnsubscribers = [];
                 return;
             }
 
-            try { await _tmPersistenceReadyPromise; } catch (e) {}
+            try {
+                await Promise.race([
+                    _tmPersistenceReadyPromise,
+                    new Promise(resolve => setTimeout(resolve, 1500))
+                ]);
+            } catch (e) {}
 
             if (forceReset && firestoreUnsubscribers.length > 0) {
                 firestoreUnsubscribers.forEach(unsub => {
@@ -4179,27 +4185,76 @@ let firestoreUnsubscribers = [];
             }
         }
 
-        function handleLogin(e) {
+        async function handleLogin(e) {
             if (e) e.preventDefault();
-            const phone = document.getElementById('login-phone').value.trim();
-            const pass = document.getElementById('login-password').value;
+            const phone = (document.getElementById('login-phone')?.value || '').trim();
+            const pass = document.getElementById('login-password')?.value || '';
+            const submitBtn = document.querySelector('#form-login button[type="submit"]');
+            const origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
 
-            let user = cloudUsers.find(u => (u.phone === phone || u.id === phone) && u.password === pass);
-            if (!user) user = defaultUsers.find(u => (u.phone === phone || u.id === phone) && u.password === pass);
+            if (!phone || !pass) {
+                if (typeof showPushBannerToast === 'function') {
+                    showPushBannerToast('Vui lòng nhập đầy đủ SĐT/ID và Mật khẩu.', true);
+                }
+                return;
+            }
+
+            const findMatch = (list) => {
+                if (!Array.isArray(list)) return null;
+                return list.find(u => u && (String(u.phone || '').trim() === phone || String(u.id || '').trim() === phone) && String(u.password || '') === pass);
+            };
+
+            let user = findMatch(cloudUsers) || findMatch(defaultUsers);
+
+            // Nếu chưa tìm thấy trong bộ nhớ cục bộ (do Firestore chưa tải xong hoặc đổi mật khẩu mới), truy vấn trực tiếp Firestore
+            if (!user && typeof db !== 'undefined' && db) {
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Đang kiểm tra...</span>';
+                }
+                try {
+                    const snap = await Promise.race([
+                        db.collection('users').get(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000))
+                    ]);
+                    if (snap && !snap.empty) {
+                        const loaded = [];
+                        snap.forEach(doc => {
+                            const data = doc.data() || {};
+                            loaded.push({ ...data, id: doc.id, name: String(data.name || data.phone || doc.id) });
+                        });
+                        if (loaded.length > 0) cloudUsers = loaded;
+                        user = findMatch(cloudUsers);
+                    }
+                } catch (err) {
+                    console.warn('Login Firestore fallback notice:', err.message || err);
+                } finally {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = origBtnHtml;
+                    }
+                }
+            }
 
             if (!user) {
-return;
+                if (typeof showPushBannerToast === 'function') {
+                    showPushBannerToast('Sai số điện thoại/ID hoặc mật khẩu. Vui lòng kiểm tra lại.', true);
+                }
+                return;
             }
 
             if (user.status === 'INACTIVE') {
-return;
+                if (typeof showPushBannerToast === 'function') {
+                    showPushBannerToast('Tài khoản này đang bị khóa. Vui lòng liên hệ quản trị viên.', true);
+                }
+                return;
             }
 
             currentUser = user;
             isInitialLoadDone = true;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(currentUser));
-            addLog(`Đăng nhập hệ thống`);
-checkAuth();
+            addLog(`Đăng nhập hệ thống`).catch(() => {});
+            checkAuth();
         }
 
         function handleLogout() {
