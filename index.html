@@ -1941,27 +1941,49 @@ let highlightedStaff = {};
 
         let _tmLastSavedTokenKey = '';
         let _tmSavingTokenPromise = null;
+        let _tmForegroundListenerAttached = false;
+        let _tmRegisterInFlight = null;
+        let _tmFcmAutoCheckedUsers = new Set();
+        let _tmFcmSaveCooldownUntil = 0;
+
+        function isValidFcmToken(token) {
+            if (!token || typeof token !== 'string') return false;
+            const trimmed = token.trim();
+            if (trimmed.length < 20 || trimmed.startsWith('{') || trimmed.startsWith('[')) return false;
+            return true;
+        }
+
+        function ensureFcmMessagingInstance() {
+            if (!tmMessagingInstance && typeof firebase !== 'undefined' && typeof firebase.messaging === 'function') {
+                try {
+                    if (!firebase.messaging.isSupported || firebase.messaging.isSupported()) {
+                        tmMessagingInstance = firebase.messaging();
+                        initForegroundFcmListener();
+                    }
+                } catch (msgErr) {
+                    console.warn('Không khởi tạo được Firebase Messaging:', msgErr.message || msgErr);
+                }
+            }
+            return tmMessagingInstance;
+        }
 
         async function saveFcmTokenToUser(token, userObj = null) {
             const targetUser = userObj || currentUser;
-            if (!token || !targetUser || !targetUser.id || typeof db === 'undefined' || !db) return;
+            if (!isValidFcmToken(token) || !targetUser || !targetUser.id || typeof db === 'undefined' || !db) return;
+            if (Date.now() < _tmFcmSaveCooldownUntil) return;
 
             const deviceId = getDeviceIdForFcm();
             const saveKey = `${targetUser.id}::${deviceId}::${token}`;
             const localSavedKey = localStorage.getItem('tm_last_saved_fcm_key') || '';
 
             const existingDeviceEntry = targetUser.fcmTokens && targetUser.fcmTokens[deviceId];
-            const alreadySavedOnThisDevice = existingDeviceEntry && existingDeviceEntry.token === token;
-
-            // Nếu thiết bị này đã lưu đúng token này trên Firestore rồi thì DỪNG NGAY, không ghi lại
-            if (alreadySavedOnThisDevice) {
+            if (existingDeviceEntry && existingDeviceEntry.token === token) {
                 _tmLastSavedTokenKey = saveKey;
                 localStorage.setItem('tm_last_saved_fcm_key', saveKey);
                 return;
             }
 
-            // Chống ghi lặp liên tiếp trong cùng phiên nếu dữ liệu đang đồng bộ
-            if (_tmLastSavedTokenKey === saveKey && localSavedKey === saveKey && targetUser.fcmToken) {
+            if (_tmLastSavedTokenKey === saveKey && localSavedKey === saveKey) {
                 return;
             }
 
@@ -1988,8 +2010,7 @@ let highlightedStaff = {};
                         }
                     };
 
-                    // Chỉ cập nhật fcmToken gốc nếu user chưa có, hoặc chưa từng lưu token cho thiết bị này
-                    if (!targetUser.fcmToken || !existingDeviceEntry || existingDeviceEntry.token !== token) {
+                    if (!isValidFcmToken(targetUser.fcmToken) || !existingDeviceEntry || existingDeviceEntry.token !== token) {
                         updatePayload.fcmToken = token;
                         updatePayload.fcmUpdatedAt = nowTs;
                     }
@@ -2010,6 +2031,7 @@ let highlightedStaff = {};
                         }
                     }
                 } catch (err) {
+                    _tmFcmSaveCooldownUntil = Date.now() + 60000;
                     console.warn('Lỗi lưu FCM token lên Firestore:', err.message || err);
                 } finally {
                     _tmSavingTokenPromise = null;
@@ -2020,7 +2042,8 @@ let highlightedStaff = {};
         }
 
         function initForegroundFcmListener() {
-            if (!tmMessagingInstance || typeof tmMessagingInstance.onMessage !== 'function') return;
+            if (_tmForegroundListenerAttached || !tmMessagingInstance || typeof tmMessagingInstance.onMessage !== 'function') return;
+            _tmForegroundListenerAttached = true;
             try {
                 tmMessagingInstance.onMessage((payload) => {
                     const notif = payload.notification || {};
@@ -2046,23 +2069,36 @@ let highlightedStaff = {};
                     }
                 });
             } catch (err) {
+                _tmForegroundListenerAttached = false;
                 console.warn('Lỗi đăng ký lắng nghe foreground FCM:', err.message || err);
             }
         }
-
-        let _tmRegisterInFlight = null;
 
         async function requestAndRegisterPushNotifications(userObj = null, interactive = false) {
             const targetUser = userObj || currentUser;
             if (!targetUser || !targetUser.id) return null;
 
-            if (!interactive && tmCurrentFcmToken && targetUser.fcmToken === tmCurrentFcmToken) {
-                return tmCurrentFcmToken;
+            const deviceId = getDeviceIdForFcm();
+            const existingDeviceToken = targetUser.fcmTokens && targetUser.fcmTokens[deviceId] && targetUser.fcmTokens[deviceId].token;
+
+            if (!interactive && isValidFcmToken(existingDeviceToken)) {
+                tmCurrentFcmToken = existingDeviceToken;
+                ensureFcmMessagingInstance();
+                return existingDeviceToken;
             }
+
+            if (!interactive) {
+                const lastAttempt = parseInt(localStorage.getItem('tm_fcm_last_attempt_ts') || '0', 10);
+                if (Date.now() - lastAttempt < 5 * 60 * 1000) {
+                    return tmCurrentFcmToken || null;
+                }
+            }
+
             if (_tmRegisterInFlight) {
                 return _tmRegisterInFlight;
             }
 
+            localStorage.setItem('tm_fcm_last_attempt_ts', String(Date.now()));
             _tmRegisterInFlight = _runRegisterPushNotifications(targetUser, interactive).finally(() => {
                 _tmRegisterInFlight = null;
             });
@@ -2070,7 +2106,6 @@ let highlightedStaff = {};
         }
 
         async function _runRegisterPushNotifications(targetUser, interactive = false) {
-
             if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) {
                 return null;
             }
@@ -2085,17 +2120,7 @@ let highlightedStaff = {};
                 }
 
                 const swReg = await navigator.serviceWorker.ready;
-
-                if (!tmMessagingInstance && typeof firebase !== 'undefined' && typeof firebase.messaging === 'function') {
-                    try {
-                        if (!firebase.messaging.isSupported || firebase.messaging.isSupported()) {
-                            tmMessagingInstance = firebase.messaging();
-                            initForegroundFcmListener();
-                        }
-                    } catch (msgErr) {
-                        console.warn('Không khởi tạo được Firebase Messaging:', msgErr.message || msgErr);
-                    }
-                }
+                ensureFcmMessagingInstance();
 
                 let token = null;
                 if (tmMessagingInstance && typeof tmMessagingInstance.getToken === 'function') {
@@ -2110,19 +2135,13 @@ let highlightedStaff = {};
                     });
                 }
 
-                if (!token && swReg && swReg.pushManager) {
-                    const sub = await swReg.pushManager.getSubscription().catch(() => null);
-                    if (sub) {
-                        token = JSON.stringify(sub.toJSON ? sub.toJSON() : { endpoint: sub.endpoint });
-                    }
-                }
-
-                if (token) {
+                if (isValidFcmToken(token)) {
                     tmCurrentFcmToken = token;
                     await saveFcmTokenToUser(token, targetUser);
+                    return token;
                 }
 
-                return token;
+                return null;
             } catch (err) {
                 console.warn('Lỗi đăng ký quyền Notification / FCM token:', err.message || err);
                 return null;
@@ -2248,7 +2267,9 @@ let highlightedStaff = {};
 
             const supported = typeof Notification !== 'undefined' && 'serviceWorker' in navigator;
             const perm = supported ? Notification.permission : 'unsupported';
-            const hasToken = Boolean(tmCurrentFcmToken || (currentUser && currentUser.fcmToken));
+            const deviceId = getDeviceIdForFcm();
+            const currentDeviceToken = currentUser && currentUser.fcmTokens && currentUser.fcmTokens[deviceId] && currentUser.fcmTokens[deviceId].token;
+            const hasToken = Boolean(isValidFcmToken(tmCurrentFcmToken) || isValidFcmToken(currentDeviceToken) || (currentUser && isValidFcmToken(currentUser.fcmToken)));
 
             if (perm === 'granted' && hasToken) {
                 if (headerBtn) {
@@ -3750,7 +3771,6 @@ let firestoreUnsubscribers = [];
             if (firestoreUnsubscribers.length > 0) return;
 
             forceReconnectFirestore();
-            let _fcmAutoCheckDoneForUser = null;
 
             const unsubUsers = db.collection("users").onSnapshot({ includeMetadataChanges: true }, snapshot => {
                 const nextUsers = [];
@@ -3783,9 +3803,17 @@ let firestoreUnsubscribers = [];
                         currentUser = updatedMe;
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(currentUser));
                         updateUserSidebarUI();
-                        if (!currentUser.fcmToken && _fcmAutoCheckDoneForUser !== currentUser.id) {
-                            _fcmAutoCheckDoneForUser = currentUser.id;
-                            if (typeof requestAndRegisterPushNotifications === 'function') {
+                        const deviceId = getDeviceIdForFcm();
+                        const deviceToken = currentUser.fcmTokens && currentUser.fcmTokens[deviceId] && currentUser.fcmTokens[deviceId].token;
+                        const hasDeviceToken = isValidFcmToken(deviceToken);
+                        const isSyncedFromServer = !snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites;
+
+                        if (hasDeviceToken) {
+                            tmCurrentFcmToken = deviceToken;
+                            ensureFcmMessagingInstance();
+                        } else if (isSyncedFromServer && !_tmFcmAutoCheckedUsers.has(currentUser.id)) {
+                            _tmFcmAutoCheckedUsers.add(currentUser.id);
+                            if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && typeof requestAndRegisterPushNotifications === 'function') {
                                 requestAndRegisterPushNotifications(currentUser, false);
                             }
                         }
