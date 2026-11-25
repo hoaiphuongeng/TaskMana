@@ -834,6 +834,10 @@
                         <i class="fa-solid fa-calendar-days w-5 text-center text-sm"></i>
                         <span>Lịch Làm Việc (Phân Ca)</span>
                     </button>
+                    <button onclick="switchTab('room-ops'); toggleMobileSidebar(false);" id="nav-room-ops" class="w-full flex items-center space-x-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all text-slate-200 hover:bg-white/15 hover:text-white">
+                        <i class="fa-solid fa-building-circle-check w-5 text-center text-sm"></i>
+                        <span>Dự Án Phòng & Lan Can</span>
+                    </button>
 <button onclick="switchTab('profile-settings'); toggleMobileSidebar(false);" id="nav-profile-settings" class="w-full flex items-center space-x-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all text-slate-200 hover:bg-white/15 hover:text-white">
                         <i class="fa-solid fa-user-gear w-5 text-center text-sm"></i>
                         <span>Cài đặt Tài khoản</span>
@@ -1628,6 +1632,19 @@
                         </div>
                     </div>
 
+                    <!-- TAB 7: ROOM OPS PRO (TÍCH HỢP DÙNG CHUNG DATA NHÂN VIÊN) -->
+                    <div id="tab-content-room-ops" class="tab-content hidden h-full">
+                        <div class="ios-card overflow-hidden p-0 h-[calc(100vh-110px)] sm:h-[calc(100vh-120px)] relative">
+                            <iframe
+                                id="room-ops-iframe"
+                                src="./room-ops.html?embedded=1"
+                                class="w-full h-full border-0 rounded-2xl bg-[#F2F2F7]"
+                                onload="if (typeof syncTaskmanaDataToRoomOps === 'function') syncTaskmanaDataToRoomOps()"
+                                title="RoomOps Pro - Quản Lý Dự Án Phòng & Lan Can">
+                            </iframe>
+                        </div>
+                    </div>
+
             <!-- NÚT KÍNH LÚP TRONG SUỐT TÌM KIẾM TASK NHANH (ADMIN) -->
             <button type="button" id="fab-search-task" onclick="openAdminTaskSearchModal()" class="fixed bottom-6 right-23 sm:right-24 z-40 w-14 h-14 sm:w-15 sm:h-15 flex items-center justify-center bg-white/45 dark:bg-slate-800/45 hover:bg-white/75 dark:hover:bg-slate-700/75 backdrop-blur-xl border border-white/60 dark:border-white/15 text-indigo-600 dark:text-indigo-400 rounded-full shadow-xl shadow-indigo-600/20 hover:shadow-2xl hover:scale-110 active:scale-90 transition-all duration-300 admin-only hidden group cursor-pointer ring-4 ring-indigo-500/15 select-none" title="Kính lúp tìm kiếm task nhanh (Admin) [Phím tắt: Ctrl + K]" aria-label="Tìm kiếm task">
                 <i class="fa-solid fa-magnifying-glass text-xl sm:text-2xl group-hover:scale-110 transition-transform duration-300 drop-shadow-sm"></i>
@@ -1664,6 +1681,13 @@
                         <i class="fa-solid fa-calendar-days"></i>
                     </div>
                     <span class="stardock-label text-[10px] font-bold text-slate-700 dark:text-slate-200 mt-1 whitespace-nowrap">Lịch làm việc</span>
+                    <span class="stardock-active-dot"></span>
+                </button>
+                <button type="button" id="stardock-room-ops" onclick="handleStaffStardockClick('room-ops', this)" class="stardock-btn" title="Dự án Phòng & Lan Can">
+                    <div class="stardock-icon-box w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white flex items-center justify-center text-base sm:text-lg shadow-md shadow-cyan-500/30 transition-all">
+                        <i class="fa-solid fa-building"></i>
+                    </div>
+                    <span class="stardock-label text-[10px] font-bold text-slate-700 dark:text-slate-200 mt-1 whitespace-nowrap">Phòng & LC</span>
                     <span class="stardock-active-dot"></span>
                 </button>
                 <button type="button" id="stardock-profile-settings" onclick="handleStaffStardockClick('profile-settings', this)" class="stardock-btn" title="Cài đặt Tài khoản">
@@ -4154,6 +4178,9 @@ let firestoreUnsubscribers = [];
                 populateDepartmentFilters();
                 renderUsers();
                 renderShiftStatistics();
+                if (typeof syncTaskmanaDataToRoomOps === 'function') {
+                    syncTaskmanaDataToRoomOps();
+                }
 
                 if (currentUser) {
                     const updatedMe = cloudUsers.find(u => u.id === currentUser.id);
@@ -4483,6 +4510,9 @@ let firestoreUnsubscribers = [];
             if (typeof updatePushNotificationUiStatus === 'function') {
                 updatePushNotificationUiStatus();
             }
+            if (typeof syncTaskmanaDataToRoomOps === 'function') {
+                syncTaskmanaDataToRoomOps();
+            }
         }
 
         async function handleLogin(e) {
@@ -4557,10 +4587,60 @@ let firestoreUnsubscribers = [];
             checkAuth();
         }
 
+
+        // ==================== CẦU NỐI ĐỒNG BỘ DATA NHÂN VIÊN SANG ROOMOPS PRO ====================
+        function syncTaskmanaDataToRoomOps() {
+            const iframe = document.getElementById('room-ops-iframe');
+            if (!iframe || !iframe.contentWindow) return;
+
+            const usersSource = (Array.isArray(cloudUsers) && cloudUsers.length > 0) ? cloudUsers : defaultUsers;
+            const mappedStaff = usersSource.map(u => ({
+                id: u.id,
+                name: u.name || u.nickname || u.phone || u.id,
+                dept: u.department || u.position || 'Kỹ thuật',
+                position: u.position || '',
+                wingScope: 'ALL',
+                username: String(u.phone || u.id || '').toLowerCase(),
+                password: '',
+                role: (u.id === 'shp' || u.role === 'ADMIN' || u.role === 'SUPER_ADMIN') ? 'admin' : 'staff',
+                active: u.status !== 'INACTIVE',
+                canUpdate: u.status !== 'INACTIVE',
+                canReportIssue: u.status !== 'INACTIVE'
+            }));
+
+            const isAdmin = Boolean(currentUser && (currentUser.id === 'shp' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN'));
+
+            iframe.contentWindow.postMessage({
+                type: 'TASKMANA_SYNC_AUTH',
+                currentUser: currentUser ? {
+                    id: currentUser.id,
+                    name: currentUser.name || currentUser.nickname || currentUser.phone,
+                    username: String(currentUser.phone || currentUser.id).toLowerCase(),
+                    dept: currentUser.department || currentUser.position || 'Kỹ thuật',
+                    role: isAdmin ? 'admin' : 'staff',
+                    active: currentUser.status !== 'INACTIVE',
+                    wingScope: 'ALL',
+                    canUpdate: true,
+                    canReportIssue: true
+                } : null,
+                users: mappedStaff
+            }, '*');
+        }
+        window.syncTaskmanaDataToRoomOps = syncTaskmanaDataToRoomOps;
+
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'ROOMOPS_REQUEST_AUTH') {
+                syncTaskmanaDataToRoomOps();
+            }
+        });
+
         function handleLogout() {
             addLog(`Đăng xuất khỏi hệ thống`);
             localStorage.removeItem(STORAGE_KEY);
             currentUser = null;
+            if (typeof syncTaskmanaDataToRoomOps === 'function') {
+                syncTaskmanaDataToRoomOps();
+            }
             checkAuth();
 }
         function loadProfileSettings() {
@@ -8102,7 +8182,7 @@ return;
         function switchTab(tab) {
             if (currentTab === tab) return;
 
-            const tabs = ['dashboard', 'profile-settings', 'tasks', 'schedule', 'users', 'web-tool'];
+            const tabs = ['dashboard', 'profile-settings', 'tasks', 'schedule', 'room-ops', 'users', 'web-tool'];
             const currentTabEl = document.getElementById(`tab-content-${currentTab}`);
 
             if (currentTabEl) {
@@ -8143,6 +8223,7 @@ return;
                     'dashboard': 'Dashboard Tổng Quan',
                     'tasks': 'Quản Lý Công Việc',
                     'schedule': 'Lịch Làm Việc (Phân Ca)',
+                    'room-ops': 'Dự Án Phòng & Lan Can',
 'profile-settings': 'Cài Đặt Tài Khoản',
                     'users': 'Quản Trị Thành Viên',
                     'web-tool': webToolConfig.title || 'Trang Web Tích Hợp'
@@ -8173,13 +8254,14 @@ return;
                 }
 if (tab === 'users') renderUsers();
                 if (tab === 'web-tool') loadWebToolView();
+                if (tab === 'room-ops' && typeof syncTaskmanaDataToRoomOps === 'function') syncTaskmanaDataToRoomOps();
                 renderIosDock();
                 updateStaffStardockActive(tab);
             }, 300);
         }
 
         function updateStaffStardockActive(tab) {
-            const dockTabs = ['dashboard', 'tasks', 'schedule', 'profile-settings'];
+            const dockTabs = ['dashboard', 'tasks', 'schedule', 'room-ops', 'profile-settings'];
             dockTabs.forEach(t => {
                 const btn = document.getElementById(`stardock-${t}`);
                 if (btn) {
