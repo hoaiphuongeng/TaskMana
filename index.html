@@ -729,6 +729,26 @@
             animation: tmBadgePulse 1.1s ease-in-out infinite;
         }
 
+
+        /* ==================== KANBAN BOARD STYLING ==================== */
+        .kanban-col-drop-active {
+            border-color: #6366f1 !important;
+            background-color: rgba(99, 102, 241, 0.08) !important;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.35) inset;
+        }
+        html.dark .kanban-col-drop-active {
+            background-color: rgba(99, 102, 241, 0.18) !important;
+        }
+        .kanban-card {
+            transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, opacity 0.18s ease;
+        }
+        .kanban-card:hover {
+            transform: translateY(-2px);
+        }
+        .kanban-card.kanban-dragging {
+            opacity: 0.45;
+            transform: scale(0.97);
+        }
     </style>
 </head>
 <body class="h-full text-slate-900 antialiased flex flex-col overflow-hidden bg-[#f2f2f7]">
@@ -1422,6 +1442,17 @@
                                     </div>
                                 </div>
 
+                                <!-- Chuyển đổi chế độ hiển thị: Danh sách / Kanban -->
+                                <div class="flex items-center space-x-1 bg-slate-300/60 dark:bg-slate-800 p-1 rounded-2xl">
+                                    <button type="button" onclick="setTaskDisplayMode('table')" id="btn-task-mode-table" class="px-3 py-1.5 rounded-xl text-xs font-black transition-all bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-sm flex items-center space-x-1.5 whitespace-nowrap cursor-pointer" title="Xem dạng bảng danh sách">
+                                        <i class="fa-solid fa-list text-[11px]"></i>
+                                        <span>Danh sách</span>
+                                    </button>
+                                    <button type="button" onclick="setTaskDisplayMode('kanban')" id="btn-task-mode-kanban" class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center space-x-1.5 whitespace-nowrap cursor-pointer" title="Xem dạng bảng Kanban kéo-thả">
+                                        <i class="fa-solid fa-table-columns text-[11px]"></i>
+                                        <span>Kanban</span>
+                                    </button>
+                                </div>
                             </div>
                             <button onclick="openTaskModal()" class="w-full lg:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-2xl shadow-md transition-all flex items-center justify-center space-x-2 admin-only hidden text-xs sm:text-sm">
                                 <i class="fa-solid fa-plus"></i>
@@ -1492,7 +1523,7 @@
                             <span id="task-view-desc">Đang hiển thị công việc trong Ngày hôm nay</span>
                         </div>
 
-                        <div class="ios-card overflow-hidden">
+                        <div id="tasks-table-wrapper" class="ios-card overflow-hidden">
                             <div class="overflow-x-auto custom-scrollbar">
                                 <table class="w-full text-left border-collapse table-auto min-w-[800px]">
                                     <thead>
@@ -1508,6 +1539,15 @@
                                     <tbody id="tasks-table-body" class="divide-y divide-slate-200/60 dark:divide-slate-800 text-xs sm:text-sm text-slate-900 dark:text-slate-100 font-medium"></tbody>
                                 </table>
                             </div>
+                        </div>
+
+                        <!-- KANBAN BOARD VIEW -->
+                        <div id="tasks-kanban-wrapper" class="hidden">
+                            <div class="mb-3 flex flex-wrap items-center justify-between gap-2 px-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                <span><i class="fa-solid fa-hand-pointer text-indigo-500 mr-1.5"></i>Kéo thả thẻ công việc giữa các cột để đổi trạng thái nhanh (hoặc bấm nút chuyển cột trên điện thoại).</span>
+                                <span id="kanban-total-indicator" class="font-extrabold text-indigo-600 dark:text-indigo-400">0 công việc</span>
+                            </div>
+                            <div id="tasks-kanban-board" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start"></div>
                         </div>
                     </div>
 
@@ -2026,6 +2066,8 @@ let highlightedStaff = {};
         let taskFutureViewMode = 'day';
         let currentTaskStatusFilter = 'all';
         let currentTaskAreaFilter = 'all';
+        let currentTaskDisplayMode = (localStorage.getItem('tm_task_display_mode_v1') === 'kanban') ? 'kanban' : 'table';
+        let draggedKanbanTaskId = null;
 
         function detectTaskArea(taskOrTitle, description = '') {
             let text = '';
@@ -6673,7 +6715,316 @@ return;
                 });
             }
             tbody.innerHTML = html;
+            if (typeof syncTaskDisplayModeUI === 'function') syncTaskDisplayModeUI();
+            if (currentTaskDisplayMode === 'kanban' && typeof renderTasksKanban === 'function') {
+                renderTasksKanban(processedTasks, todayStr);
+            }
         }
+
+        // ==================== CHẾ ĐỘ XEM KANBAN (QUẢN LÝ CÔNG VIỆC) ====================
+        function syncTaskDisplayModeUI() {
+            const tableWrap = document.getElementById('tasks-table-wrapper');
+            const kanbanWrap = document.getElementById('tasks-kanban-wrapper');
+            const btnTable = document.getElementById('btn-task-mode-table');
+            const btnKanban = document.getElementById('btn-task-mode-kanban');
+
+            const isKanban = currentTaskDisplayMode === 'kanban';
+            if (tableWrap) tableWrap.classList.toggle('hidden', isKanban);
+            if (kanbanWrap) kanbanWrap.classList.toggle('hidden', !isKanban);
+
+            const activeCls = 'px-3 py-1.5 rounded-xl text-xs font-black transition-all bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-sm flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ring-1 ring-black/5 dark:ring-white/10';
+            const inactiveCls = 'px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center space-x-1.5 whitespace-nowrap cursor-pointer';
+
+            if (btnTable) btnTable.className = isKanban ? inactiveCls : activeCls;
+            if (btnKanban) btnKanban.className = isKanban ? activeCls : inactiveCls;
+        }
+
+        function setTaskDisplayMode(mode) {
+            currentTaskDisplayMode = (mode === 'kanban') ? 'kanban' : 'table';
+            try {
+                localStorage.setItem('tm_task_display_mode_v1', currentTaskDisplayMode);
+            } catch (e) {}
+            syncTaskDisplayModeUI();
+            renderTasks();
+        }
+        window.setTaskDisplayMode = setTaskDisplayMode;
+
+        function renderTasksKanban(tasksList, todayStr) {
+            const board = document.getElementById('tasks-kanban-board');
+            if (!board) return;
+
+            const totalInd = document.getElementById('kanban-total-indicator');
+            if (totalInd) totalInd.innerText = `${tasksList.length} công việc`;
+
+            const isAdmin = currentUser && (currentUser.id === 'shp' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN');
+
+            const columns = [
+                {
+                    status: 'Chưa Thực Hiện',
+                    title: 'Chưa làm',
+                    icon: 'fa-list',
+                    headerBg: 'bg-slate-200/80 dark:bg-slate-800/90',
+                    iconColor: 'text-slate-700 dark:text-slate-200',
+                    badgeBg: 'bg-slate-700 text-white',
+                    borderTop: 'border-t-4 border-t-slate-400'
+                },
+                {
+                    status: 'Đang Thực Hiện',
+                    title: 'Đang làm',
+                    icon: 'fa-spinner',
+                    headerBg: 'bg-amber-100/80 dark:bg-amber-950/60',
+                    iconColor: 'text-amber-700 dark:text-amber-300',
+                    badgeBg: 'bg-amber-500 text-white',
+                    borderTop: 'border-t-4 border-t-amber-500'
+                },
+                {
+                    status: 'Đã Hoàn Thành',
+                    title: 'Hoàn thành',
+                    icon: 'fa-circle-check',
+                    headerBg: 'bg-emerald-100/80 dark:bg-emerald-950/60',
+                    iconColor: 'text-emerald-700 dark:text-emerald-300',
+                    badgeBg: 'bg-emerald-600 text-white',
+                    borderTop: 'border-t-4 border-t-emerald-500'
+                },
+                {
+                    status: 'Huỷ',
+                    title: 'Huỷ',
+                    icon: 'fa-ban',
+                    headerBg: 'bg-purple-100/80 dark:bg-purple-950/60',
+                    iconColor: 'text-purple-700 dark:text-purple-300',
+                    badgeBg: 'bg-purple-600 text-white',
+                    borderTop: 'border-t-4 border-t-purple-500'
+                }
+            ];
+
+            const statusFlow = ['Chưa Thực Hiện', 'Đang Thực Hiện', 'Đã Hoàn Thành', 'Huỷ'];
+
+            board.innerHTML = columns.map(col => {
+                const colTasks = tasksList.filter(t => (t.status || 'Chưa Thực Hiện') === col.status);
+                const colStatusAttr = col.status.replace(/'/g, "\'");
+
+                const cardsHtml = colTasks.length === 0
+                    ? `<div class="py-8 px-3 text-center text-xs font-semibold text-slate-400 dark:text-slate-500 border-2 border-dashed border-slate-200/80 dark:border-slate-700/60 rounded-2xl">
+                           Chưa có công việc
+                       </div>`
+                    : colTasks.map(t => {
+                        const assigneeObj = cloudUsers.find(u => u.id === t.assigneeId);
+                        const assigneeName = assigneeObj ? (assigneeObj.nickname ? `${assigneeObj.name} (${assigneeObj.nickname})` : assigneeObj.name) : 'Chưa phân công';
+                        const canEdit = Boolean(isAdmin || (currentUser && t.assigneeId === currentUser.id));
+                        const isOverdue = t.deadline && t.deadline < todayStr && t.status !== 'Đã Hoàn Thành' && t.status !== 'Huỷ';
+                        const areaName = getTaskArea(t);
+                        const progressVal = typeof t.progress === 'number' ? t.progress : (t.status === 'Đã Hoàn Thành' ? 100 : 0);
+
+                        const areaBadge = areaName === 'Phòng Khách'
+                            ? `<span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black bg-sky-100 dark:bg-sky-900/60 text-sky-900 dark:text-sky-200 border border-sky-200 dark:border-sky-700"><i class="fa-solid fa-bed mr-1 text-[9px]"></i>Phòng Khách</span>`
+                            : `<span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black bg-teal-100 dark:bg-teal-900/60 text-teal-900 dark:text-teal-200 border border-teal-200 dark:border-teal-700"><i class="fa-solid fa-building mr-1 text-[9px]"></i>KV Công Cộng</span>`;
+
+                        const priorityBadge = t.priority === 'Urgent'
+                            ? `<span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black bg-rose-600 text-white"><i class="fa-solid fa-fire mr-1 text-amber-300"></i>Urgent</span>`
+                            : '';
+
+                        const overdueBadge = isOverdue
+                            ? `<span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black bg-rose-100 dark:bg-rose-900/70 text-rose-700 dark:text-rose-200 border border-rose-300 dark:border-rose-700 animate-pulse">Quá hạn</span>`
+                            : '';
+
+                        const curIdx = statusFlow.indexOf(col.status);
+                        const prevStatus = curIdx > 0 ? statusFlow[curIdx - 1] : null;
+                        const nextStatus = curIdx >= 0 && curIdx < statusFlow.length - 1 ? statusFlow[curIdx + 1] : null;
+
+                        const barColor = progressVal === 100 || t.status === 'Đã Hoàn Thành'
+                            ? 'bg-emerald-500'
+                            : (progressVal > 0 ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600');
+
+                        return `
+                            <div
+                                draggable="${canEdit ? 'true' : 'false'}"
+                                ondragstart="handleKanbanDragStart(event, '${t.id}')"
+                                ondragend="handleKanbanDragEnd(event)"
+                                class="kanban-card bg-white/95 dark:bg-slate-900/90 rounded-2xl p-3.5 border ${isOverdue ? 'border-rose-300 dark:border-rose-700/80' : 'border-slate-200/80 dark:border-slate-700/80'} shadow-xs hover:shadow-md space-y-2.5 ${canEdit ? 'cursor-grab active:cursor-grabbing' : ''}">
+                                
+                                <div class="flex items-center flex-wrap gap-1.5">
+                                    ${areaBadge}
+                                    ${priorityBadge}
+                                    ${overdueBadge}
+                                </div>
+
+                                <div>
+                                    <h4 class="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white leading-snug break-words">${escapeHtml(t.title)}</h4>
+                                    ${t.description ? `<p class="text-[11px] text-slate-600 dark:text-slate-300 mt-1 line-clamp-2 whitespace-pre-line">${escapeHtml(t.description)}</p>` : ''}
+                                </div>
+
+                                <div class="space-y-1">
+                                    <div class="flex items-center justify-between text-[10px] font-extrabold">
+                                        <span class="text-slate-500 dark:text-slate-400">Tiến độ</span>
+                                        <span class="${progressVal === 100 ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-600 dark:text-indigo-400'}">${progressVal}%</span>
+                                    </div>
+                                    <div class="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                        <div class="h-full rounded-full transition-all duration-300 ${barColor}" style="width: ${progressVal}%"></div>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 gap-2">
+                                    <div class="flex items-center space-x-2 min-w-0">
+                                        <div class="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-[10px] flex-shrink-0">
+                                            ${(assigneeObj && assigneeObj.avatar) ? `<img src="${assigneeObj.avatar}" class="w-full h-full object-cover rounded-full">` : ((assigneeObj && assigneeObj.name) ? assigneeObj.name.charAt(0).toUpperCase() : 'U')}
+                                        </div>
+                                        <span class="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">${escapeHtml(assigneeName)}</span>
+                                    </div>
+                                    <span class="text-[10px] font-bold whitespace-nowrap ${isOverdue ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'}">
+                                        <i class="fa-regular fa-calendar-xmark mr-0.5"></i>${t.deadline || '--'}
+                                    </span>
+                                </div>
+
+                                <div class="flex items-center justify-between gap-1.5 pt-1">
+                                    <div class="flex items-center space-x-1">
+                                        ${canEdit && prevStatus ? `<button type="button" onclick="moveKanbanTaskStatus('${t.id}', '${prevStatus}')" class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-slate-600 dark:text-slate-300 text-[10px] font-bold transition-all cursor-pointer" title="Chuyển về: ${prevStatus}"><i class="fa-solid fa-chevron-left"></i></button>` : ''}
+                                        ${canEdit && nextStatus ? `<button type="button" onclick="moveKanbanTaskStatus('${t.id}', '${nextStatus}')" class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-slate-600 dark:text-slate-300 text-[10px] font-bold transition-all cursor-pointer" title="Chuyển sang: ${nextStatus}"><i class="fa-solid fa-chevron-right"></i></button>` : ''}
+                                    </div>
+                                    <div class="flex items-center space-x-1">
+                                        ${canEdit ? `<button type="button" onclick="openStaffUpdateModal('${t.id}')" class="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold transition-all cursor-pointer">Cập nhật</button>` : ''}
+                                        ${isAdmin ? `<button type="button" onclick="openTaskModal('${t.id}')" class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-indigo-600 dark:text-indigo-400 text-[10px] transition-all cursor-pointer" title="Sửa"><i class="fa-solid fa-pen"></i></button>` : ''}
+                                        ${isAdmin ? `<button type="button" onclick="deleteTask('${t.id}')" class="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-300 text-[10px] transition-all cursor-pointer" title="Xóa"><i class="fa-solid fa-trash"></i></button>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                return `
+                    <div
+                        class="ios-card overflow-hidden flex flex-col border border-slate-200/80 dark:border-slate-700/80 ${col.borderTop} transition-all"
+                        ondragover="handleKanbanDragOver(event)"
+                        ondragleave="handleKanbanDragLeave(event)"
+                        ondrop="handleKanbanDrop(event, '${colStatusAttr}')">
+                        <div class="px-4 py-3 ${col.headerBg} border-b border-slate-200/70 dark:border-slate-700/70 flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <i class="fa-solid ${col.icon} ${col.iconColor} text-xs"></i>
+                                <h3 class="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">${col.title}</h3>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black ${col.badgeBg}">${colTasks.length}</span>
+                        </div>
+                        <div class="p-3 space-y-3 max-h-[68vh] overflow-y-auto custom-scrollbar min-h-[180px]">
+                            ${cardsHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function handleKanbanDragStart(event, taskId) {
+            draggedKanbanTaskId = taskId;
+            if (event.dataTransfer) {
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', taskId);
+            }
+            if (event.currentTarget) {
+                event.currentTarget.classList.add('kanban-dragging');
+            }
+        }
+
+        function handleKanbanDragEnd(event) {
+            draggedKanbanTaskId = null;
+            if (event.currentTarget) {
+                event.currentTarget.classList.remove('kanban-dragging');
+            }
+            document.querySelectorAll('.kanban-col-drop-active').forEach(el => el.classList.remove('kanban-col-drop-active'));
+        }
+
+        function handleKanbanDragOver(event) {
+            event.preventDefault();
+            if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+            if (event.currentTarget) {
+                event.currentTarget.classList.add('kanban-col-drop-active');
+            }
+        }
+
+        function handleKanbanDragLeave(event) {
+            if (event.currentTarget && !event.currentTarget.contains(event.relatedTarget)) {
+                event.currentTarget.classList.remove('kanban-col-drop-active');
+            }
+        }
+
+        function handleKanbanDrop(event, newStatus) {
+            event.preventDefault();
+            if (event.currentTarget) {
+                event.currentTarget.classList.remove('kanban-col-drop-active');
+            }
+            const taskId = draggedKanbanTaskId || (event.dataTransfer ? event.dataTransfer.getData('text/plain') : '');
+            draggedKanbanTaskId = null;
+            if (taskId) {
+                moveKanbanTaskStatus(taskId, newStatus);
+            }
+        }
+
+        async function moveKanbanTaskStatus(taskId, newStatus) {
+            const task = cloudTasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            const isAdmin = currentUser && (currentUser.id === 'shp' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN');
+            if (!isAdmin && (!currentUser || task.assigneeId !== currentUser.id)) {
+                return;
+            }
+
+            const oldStatus = task.status || 'Chưa Thực Hiện';
+            if (oldStatus === newStatus) return;
+
+            let newProgress = typeof task.progress === 'number' ? task.progress : 0;
+            if (newStatus === 'Chưa Thực Hiện') newProgress = 0;
+            else if (newStatus === 'Đang Thực Hiện' && (newProgress === 0 || newProgress === 100)) newProgress = 50;
+            else if (newStatus === 'Đã Hoàn Thành') newProgress = 100;
+
+            const wasCompleted = oldStatus === 'Đã Hoàn Thành' || task.progress === 100;
+            const isNowCompleted = newStatus === 'Đã Hoàn Thành';
+            const updaterId = currentUser ? currentUser.id : '';
+            const updaterName = currentUser ? (currentUser.nickname || currentUser.name) : 'Người dùng';
+            const nowTs = Date.now();
+
+            task.status = newStatus;
+            task.progress = newProgress;
+
+            const updateDoc = {
+                status: newStatus,
+                progress: newProgress,
+                updatedAt: nowTs
+            };
+            if (isNowCompleted && !wasCompleted) {
+                updateDoc.completedById = updaterId;
+                updateDoc.completedByName = updaterName;
+                updateDoc.completedAt = nowTs;
+            }
+
+            renderTasks();
+            renderDashboard();
+
+            try {
+                await db.collection('tasks').doc(taskId).set(updateDoc, { merge: true });
+                addLog(`Kanban: Chuyển "${task.title}" sang ${newStatus} (${newProgress}%)`).catch(() => {});
+                if (isNowCompleted && !wasCompleted) {
+                    playTaskCompletionCelebration(task.title);
+                    Promise.resolve(notifyAdminTaskCompletedPush({
+                        taskId,
+                        title: task.title,
+                        completedById: updaterId,
+                        completedByName: updaterName,
+                        note: task.note || '',
+                        areaCategory: getTaskArea(task),
+                        deadline: task.deadline || ''
+                    })).catch(() => {});
+                }
+            } catch (err) {
+                console.error('Lỗi cập nhật Kanban:', err);
+                if (typeof showPushBannerToast === 'function') {
+                    showPushBannerToast('Không thể lưu trạng thái lên Cloud: ' + (err.message || err), true);
+                }
+            }
+        }
+
+        window.handleKanbanDragStart = handleKanbanDragStart;
+        window.handleKanbanDragEnd = handleKanbanDragEnd;
+        window.handleKanbanDragOver = handleKanbanDragOver;
+        window.handleKanbanDragLeave = handleKanbanDragLeave;
+        window.handleKanbanDrop = handleKanbanDrop;
+        window.moveKanbanTaskStatus = moveKanbanTaskStatus;
 
         function handleProgressSliderInput(val) {
             const progress = parseInt(val, 10) || 0;
