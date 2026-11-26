@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>HoteTech Ops — Module Kiểm Định Thiết Bị</title>
+    <meta name="description" content="Module theo dõi lịch kiểm định thiết bị khách sạn (thang máy, nồi hơi, PCCC, trạm điện, HVAC, đo lường) với cảnh báo tự động sắp tới hạn.">
+    <meta name="theme-color" content="#0d9488">
+
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('tm_theme_mode') || 'light';
+                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if (savedTheme === 'dark' || (savedTheme === 'auto' && prefersDark)) {
+                    document.documentElement.classList.add('dark');
+                }
+            } catch (e) {}
+        })();
+    </script>
+
+    <!-- Google Fonts chuẩn tiếng Việt (Plus Jakarta Sans & IBM Plex Mono) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+                        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Icons & SheetJS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- Firebase SDKs (dùng chung Firestore taskmana-shp) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        html {
+            font-size: 16px;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: subpixel-antialiased;
+            -moz-osx-font-smoothing: auto;
+        }
+        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+            html {
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+            }
+        }
+        body {
+            font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f1f5f9;
+            color: #020617;
+            font-variant-numeric: tabular-nums;
+            -webkit-tap-highlight-color: transparent;
+        }
+        html.dark body {
+            background: #0b1120;
+            color: #f8fafc;
+        }
+        /* Nền sắc nét, độ tương phản cao, tránh blur gây nhòe chữ trong iframe */
+        .crisp-bar {
+            background: rgba(255, 255, 255, 0.97);
+            border-bottom: 1px solid #cbd5e1;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+        }
+        html.dark .crisp-bar {
+            background: rgba(15, 23, 42, 0.97);
+            border-bottom-color: rgba(148, 163, 184, 0.2);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+        }
+        .crisp-panel {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+        }
+        html.dark .crisp-panel {
+            background: #131c31;
+            border-color: rgba(148, 163, 184, 0.22);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+        }
+        .crisp-card {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .crisp-card:hover {
+            border-color: #94a3b8;
+            box-shadow: 0 6px 20px rgba(15, 23, 42, 0.09);
+        }
+        html.dark .crisp-card {
+            background: #131c31;
+            border-color: rgba(148, 163, 184, 0.22);
+        }
+        html.dark .crisp-card:hover {
+            border-color: rgba(148, 163, 184, 0.4);
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: #fff !important; color: #000 !important; }
+            .crisp-card, .crisp-panel, .crisp-bar { box-shadow: none !important; border: 1px solid #94a3b8 !important; background: #fff !important; break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- HEADER -->
+    <header class="sticky top-0 z-30 crisp-bar px-4 sm:px-6 py-3 no-print">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center space-x-3 min-w-0">
+                <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-teal-600 to-emerald-600 text-white flex items-center justify-center shadow-sm flex-shrink-0">
+                    <i class="fa-solid fa-shield-halved text-lg"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="flex items-center space-x-2">
+                        <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-slate-950 dark:text-white truncate">Kiểm Định Thiết Bị Khách Sạn</h1>
+                        <span id="sync-status-pill" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 dark:bg-emerald-900/70 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">Cloud Sync</span>
+                    </div>
+                    <p id="header-subtitle" class="text-xs font-medium text-slate-600 dark:text-slate-300 truncate">Theo dõi hạn kiểm định thang máy, nồi hơi, PCCC, trạm điện, HVAC & đo lường</p>
+                </div>
+            </div>
+
+            <div class="flex items-center flex-wrap gap-1.5 sm:gap-2">
+                <button type="button" id="btn-notify" onclick="requestNotifPermission()" class="px-3 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/70 dark:hover:bg-amber-900 text-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-700 text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer" title="Bật thông báo trình duyệt khi có thiết bị sắp đến hạn">
+                    <i id="notif-icon" class="fa-solid fa-bell text-xs"></i>
+                    <span id="notif-label" class="hidden md:inline">Nhắc lịch</span>
+                </button>
+
+                <input type="file" id="json-import-input" accept=".json,application/json" class="hidden" onchange="handleImportJSON(event)">
+                <button type="button" onclick="document.getElementById('json-import-input').click()" class="admin-only px-3 py-2 rounded-xl bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-600 text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer" title="Nhập dữ liệu từ file JSON">
+                    <i class="fa-solid fa-file-import text-indigo-600 dark:text-indigo-400"></i>
+                    <span class="hidden sm:inline">Nhập JSON</span>
+                </button>
+
+                <button type="button" onclick="exportJSON()" class="px-3 py-2 rounded-xl bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-600 text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer" title="Sao lưu JSON">
+                    <i class="fa-solid fa-download text-teal-700 dark:text-teal-400"></i>
+                    <span class="hidden lg:inline">JSON</span>
+                </button>
+
+                <button type="button" onclick="exportExcel()" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center space-x-1.5 shadow-sm transition cursor-pointer" title="Xuất file Excel">
+                    <i class="fa-solid fa-file-excel"></i>
+                    <span class="hidden sm:inline">Excel</span>
+                </button>
+
+                <button type="button" onclick="window.print()" class="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs font-bold flex items-center space-x-1.5 shadow-sm transition cursor-pointer" title="In hoặc lưu PDF">
+                    <i class="fa-solid fa-print"></i>
+                    <span class="hidden md:inline">In / PDF</span>
+                </button>
+
+                <button type="button" onclick="openInspectionModal('create')" class="admin-only px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold flex items-center space-x-1.5 shadow-sm transition cursor-pointer">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Thêm thiết bị</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN -->
+    <main class="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 py-5 space-y-5 pb-14">
+
+        <!-- 4 KPI CARDS -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <button type="button" onclick="setUrgencyFilter('all')" class="crisp-card rounded-2xl p-4 text-left flex items-center justify-between cursor-pointer">
+                <div>
+                    <span class="text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-300">Tổng thiết bị</span>
+                    <div id="kpi-total" class="text-2xl sm:text-3xl font-extrabold font-mono text-slate-950 dark:text-white mt-1">0</div>
+                </div>
+                <div class="w-11 h-11 rounded-2xl bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-200 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-clipboard-check"></i>
+                </div>
+            </button>
+
+            <button type="button" onclick="setUrgencyFilter('overdue')" class="crisp-card rounded-2xl p-4 text-left flex items-center justify-between border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-950/40 cursor-pointer">
+                <div>
+                    <span class="text-xs font-extrabold uppercase tracking-wide text-rose-800 dark:text-rose-200">Quá hạn</span>
+                    <div id="kpi-overdue" class="text-2xl sm:text-3xl font-extrabold font-mono text-rose-700 dark:text-rose-200 mt-1">0</div>
+                </div>
+                <div class="w-11 h-11 rounded-2xl bg-rose-200 dark:bg-rose-900/80 text-rose-800 dark:text-rose-100 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+            </button>
+
+            <button type="button" onclick="setUrgencyFilter('due_soon')" class="crisp-card rounded-2xl p-4 text-left flex items-center justify-between border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 cursor-pointer">
+                <div>
+                    <span class="text-xs font-extrabold uppercase tracking-wide text-amber-900 dark:text-amber-200">Sắp tới hạn</span>
+                    <div id="kpi-soon" class="text-2xl sm:text-3xl font-extrabold font-mono text-amber-800 dark:text-amber-200 mt-1">0</div>
+                </div>
+                <div class="w-11 h-11 rounded-2xl bg-amber-200 dark:bg-amber-900/80 text-amber-900 dark:text-amber-100 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-clock"></i>
+                </div>
+            </button>
+
+            <button type="button" onclick="setUrgencyFilter('safe')" class="crisp-card rounded-2xl p-4 text-left flex items-center justify-between border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 cursor-pointer">
+                <div>
+                    <span class="text-xs font-extrabold uppercase tracking-wide text-emerald-900 dark:text-emerald-200">Còn hạn an toàn</span>
+                    <div id="kpi-safe" class="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-800 dark:text-emerald-200 mt-1">0</div>
+                </div>
+                <div class="w-11 h-11 rounded-2xl bg-emerald-200 dark:bg-emerald-900/80 text-emerald-900 dark:text-emerald-100 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+            </button>
+        </div>
+
+        <!-- ALERT BANNER (OVERDUE / DUE SOON) -->
+        <div id="alert-banner" class="hidden crisp-card rounded-2xl p-4 border-l-4 border-l-rose-600 bg-rose-50 dark:bg-rose-950/50 space-y-2.5 no-print">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div class="flex items-center space-x-2.5">
+                    <i class="fa-solid fa-bell-concierge text-rose-700 dark:text-rose-300 text-base"></i>
+                    <div>
+                        <h3 id="alert-banner-title" class="text-sm font-extrabold text-rose-950 dark:text-rose-100">Cảnh báo lịch kiểm định cần xử lý</h3>
+                        <p id="alert-banner-desc" class="text-xs text-rose-800 dark:text-rose-200 font-semibold mt-0.5"></p>
+                    </div>
+                </div>
+                <button type="button" onclick="setUrgencyFilter('due_soon')" class="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold transition cursor-pointer">
+                    Xem danh sách cần xử lý
+                </button>
+            </div>
+            <div id="alert-banner-chips" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <!-- FILTER BAR -->
+        <div class="crisp-panel rounded-2xl p-3.5 sm:p-4 space-y-3 no-print">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div class="relative flex-1 max-w-md">
+                    <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 dark:text-slate-400"><i class="fa-solid fa-magnifying-glass text-xs"></i></span>
+                    <input type="text" id="search-input" oninput="renderInspections()" placeholder="Tìm mã thiết bị, tên, vị trí, đơn vị KĐ, số GCN, người phụ trách..." class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-950 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600">
+                </div>
+
+                <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar" id="urgency-filter-bar">
+                    <button type="button" onclick="setUrgencyFilter('all')" data-urg="all" class="urg-pill px-3.5 py-2 rounded-xl text-xs font-extrabold bg-indigo-600 text-white shadow-xs whitespace-nowrap cursor-pointer">Tất cả</button>
+                    <button type="button" onclick="setUrgencyFilter('overdue')" data-urg="overdue" class="urg-pill px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-600 whitespace-nowrap cursor-pointer">Quá hạn</button>
+                    <button type="button" onclick="setUrgencyFilter('due_soon')" data-urg="due_soon" class="urg-pill px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-600 whitespace-nowrap cursor-pointer">Sắp tới hạn</button>
+                    <button type="button" onclick="setUrgencyFilter('safe')" data-urg="safe" class="urg-pill px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-600 whitespace-nowrap cursor-pointer">Còn hạn</button>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-200 dark:border-slate-700 flex-wrap">
+                <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar" id="category-filter-bar"></div>
+                <button type="button" onclick="seedSampleInspections()" class="admin-only text-xs font-bold text-indigo-700 dark:text-indigo-300 hover:underline flex items-center space-x-1.5 whitespace-nowrap cursor-pointer">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>Nạp 6 thiết bị mẫu</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- INSPECTIONS GRID -->
+        <div id="inspections-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </main>
+
+    <!-- MODAL CREATE / EDIT / RENEW -->
+    <div id="modal-inspection" class="fixed inset-0 z-50 bg-slate-950/60 hidden items-center justify-center p-3 sm:p-4 no-print" onclick="if(event.target===this) closeInspectionModal()">
+        <div class="crisp-panel w-full max-w-2xl rounded-3xl overflow-hidden bg-white dark:bg-slate-900 shadow-2xl max-h-[92vh] flex flex-col">
+            <div class="px-5 py-4 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <div>
+                    <h3 id="modal-title" class="text-base font-extrabold text-slate-950 dark:text-white">Thêm Thiết Bị Kiểm Định</h3>
+                    <p id="modal-subtitle" class="text-xs text-slate-600 dark:text-slate-300 font-medium mt-0.5">Nhập thông tin thiết bị, chu kỳ và người phụ trách theo dõi</p>
+                </div>
+                <button type="button" onclick="closeInspectionModal()" class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-100 flex items-center justify-center cursor-pointer">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form id="form-inspection" onsubmit="handleSaveInspection(event)" class="p-5 overflow-y-auto space-y-4">
+                <input type="hidden" id="inp-id">
+                <input type="hidden" id="inp-mode">
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200 mb-1.5">Mã thiết bị *</label>
+                        <input type="text" id="inp-code" required placeholder="TB-ELV-01" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-mono font-bold text-slate-950 dark:text-white uppercase">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200 mb-1.5">Tên thiết bị *</label>
+                        <input type="text" id="inp-name" required placeholder="VD: Thang máy khách số 1 — Ocean Wing" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-bold text-slate-950 dark:text-white">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200 mb-1.5">Nhóm thiết bị *</label>
+                        <select id="inp-category" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-bold text-slate-950 dark:text-white">
+                            <option value="thang_may">Thang máy & Thiết bị nâng</option>
+                            <option value="ap_luc">Nồi hơi & Bình chịu áp lực</option>
+                            <option value="pccc">Hệ thống PCCC</option>
+                            <option value="dien">Trạm điện & Chống sét</option>
+                            <option value="hvac">HVAC & Chiller</option>
+                            <option value="do_luong">Thiết bị Đo lường & Hiệu chuẩn</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200 mb-1.5">Vị trí lắp đặt *</label>
+                        <input type="text" id="inp-location" required placeholder="VD: Phòng máy Chiller · Tầng hầm" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-950 dark:text-white">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200 mb-1.5">Đơn vị kiểm định *</label>
+                        <input type="text" id="inp-agency" required placeholder="Trung tâm Kiểm định KTAT Khu vực II" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-950 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200 mb-1.5">Số tem / Giấy chứng nhận</label>
+                        <input type="text" id="inp-cert" placeholder="KD-2026-xxxxx" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-mono font-bold text-slate-950 dark:text-white">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200 mb-1.5">Chu kỳ (tháng)</label>
+                        <input type="number" id="inp-cycle" min="1" max="60" value="12" oninput="recalcNextDueDate()" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-mono font-bold text-slate-950 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200 mb-1.5">Ngày KĐ gần nhất</label>
+                        <input type="date" id="inp-last-date" required onchange="recalcNextDueDate()" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-mono font-bold text-slate-950 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200 mb-1.5">Hạn KĐ tiếp theo *</label>
+                        <input type="date" id="inp-next-date" required class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-mono font-bold text-indigo-800 dark:text-indigo-300">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200 mb-1.5">Nhắc trước (ngày)</label>
+                        <input type="number" id="inp-remind" min="1" max="180" value="30" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-mono font-bold text-slate-950 dark:text-white">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200 mb-1.5">Người phụ trách</label>
+                        <select id="inp-responsible" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-bold text-slate-950 dark:text-white"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200 mb-1.5">Trạng thái hồ sơ</label>
+                        <select id="inp-status" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-bold text-slate-950 dark:text-white">
+                            <option value="valid">Đang hiệu lực</option>
+                            <option value="scheduled">Đã đặt lịch kiểm định</option>
+                            <option value="expired">Hết hạn / Tạm ngưng</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-200 mb-1.5">Ghi chú kỹ thuật</label>
+                    <textarea id="inp-notes" rows="2" placeholder="Nhập lưu ý tải mẫu, áp suất thử, đầu mối liên hệ kiểm định viên..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-medium text-slate-950 dark:text-white"></textarea>
+                </div>
+
+                <div class="pt-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end space-x-2">
+                    <button type="button" onclick="closeInspectionModal()" class="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-slate-100 cursor-pointer">Hủy</button>
+                    <button type="submit" id="btn-save-inspection" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-sm cursor-pointer">Lưu Lịch Kiểm Định</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast-box" class="fixed bottom-5 right-4 z-50 pointer-events-none transition-all duration-300 opacity-0 translate-y-3 no-print"></div>
+
+    <script>
+        // ==================== CẤU HÌNH FIREBASE (DÙNG CHUNG TASKMANA-SHP) ====================
+        const firebaseConfig = {
+            apiKey: "AIzaSyDicItwzwlQWox8pL7qDleljWAyY3N56jk",
+            authDomain: "taskmana-shp.firebaseapp.com",
+            projectId: "taskmana-shp",
+            storageBucket: "taskmana-shp.firebasestorage.app",
+            messagingSenderId: "77320945086",
+            appId: "1:77320945086:web:afdcbe07c674ed02820def"
+        };
+
+        let db = null;
+        try {
+            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            db.settings({ ignoreUndefinedProperties: true, experimentalAutoDetectLongPolling: true });
+        } catch (e) {
+            console.warn('Firestore fallback to localStorage:', e);
+        }
+
+        // ==================== TRẠNG THÁI & DANH MỤC ====================
+        const STORAGE_KEY = 'hotetech_inspections_module_v1';
+        const isEmbeddedInTaskmana = (window.self !== window.top) || new URLSearchParams(window.location.search).get('embedded') === '1';
+
+        const CATEGORIES = {
+            thang_may: { label: 'Thang máy', icon: 'fa-elevator', badge: 'bg-indigo-100 text-indigo-900 border border-indigo-200 dark:bg-indigo-900/70 dark:text-indigo-100 dark:border-indigo-700' },
+            ap_luc:    { label: 'Nồi hơi & Áp lực', icon: 'fa-gauge-high', badge: 'bg-rose-100 text-rose-900 border border-rose-200 dark:bg-rose-900/70 dark:text-rose-100 dark:border-rose-700' },
+            pccc:      { label: 'PCCC', icon: 'fa-fire-extinguisher', badge: 'bg-orange-100 text-orange-900 border border-orange-200 dark:bg-orange-900/70 dark:text-orange-100 dark:border-orange-700' },
+            dien:      { label: 'Trạm điện', icon: 'fa-bolt', badge: 'bg-amber-100 text-amber-950 border border-amber-300 dark:bg-amber-900/70 dark:text-amber-100 dark:border-amber-700' },
+            hvac:      { label: 'HVAC & Chiller', icon: 'fa-fan', badge: 'bg-sky-100 text-sky-900 border border-sky-200 dark:bg-sky-900/70 dark:text-sky-100 dark:border-sky-700' },
+            do_luong:  { label: 'Đo lường', icon: 'fa-sliders', badge: 'bg-teal-100 text-teal-900 border border-teal-200 dark:bg-teal-900/70 dark:text-teal-100 dark:border-teal-700' }
+        };
+
+        const STATUS_MAP = {
+            valid:     { label: 'Đang hiệu lực', cls: 'bg-emerald-100 text-emerald-900 border border-emerald-200 dark:bg-emerald-900/70 dark:text-emerald-100 dark:border-emerald-700' },
+            scheduled: { label: 'Đã đặt lịch KĐ', cls: 'bg-blue-100 text-blue-900 border border-blue-200 dark:bg-blue-900/70 dark:text-blue-100 dark:border-blue-700' },
+            expired:   { label: 'Hết hạn / Tạm ngưng', cls: 'bg-rose-100 text-rose-900 border border-rose-200 dark:bg-rose-900/70 dark:text-rose-100 dark:border-rose-700' }
+        };
+
+        let staffList = [
+            { id: 'shp', name: 'Sơn Hoài Phương', dept: 'Ban Quản Lý & Điều Hành', role: 'admin', active: true },
+            { id: 'tvhung', name: 'Trịnh Văn Hùng', dept: 'Ban Quản Lý & Điều Hành', role: 'admin', active: true },
+            { id: 'nvchau', name: 'Nguyễn Văn Châu', dept: 'Điều Hòa & Không Khí (AC)', role: 'staff', active: true },
+            { id: 'dvphuong', name: 'Dương Văn Phương', dept: 'Lò Hơi (Boiler)', role: 'staff', active: true },
+            { id: 'hvthuc', name: 'Huỳnh Văn Thúc', dept: 'Cơ Điện & Chiếu Sáng (ME)', role: 'staff', active: true }
+        ];
+
+        let currentUser = { id: 'shp', name: 'Quản trị viên', role: 'admin' };
+        let inspections = [];
+        let urgencyFilter = 'all';
+        let categoryFilter = 'all';
+        let toastTimer = null;
+
+        // ==================== TIỆN ÍCH NGÀY THÁNG ====================
+        function toDateStr(d = new Date()) {
+            const dt = (d instanceof Date) ? d : new Date(d);
+            const y = dt.getFullYear();
+            const m = String(dt.getMonth() + 1).padStart(2, '0');
+            const day = String(dt.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function formatViDate(dateStr) {
+            if (!dateStr) return '--';
+            const parts = String(dateStr).split('-');
+            return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateStr;
+        }
+
+        function addMonths(dateStr, months) {
+            if (!dateStr) return '';
+            const parts = dateStr.split('-').map(Number);
+            const d = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
+            d.setMonth(d.getMonth() + (parseInt(months, 10) || 12));
+            return toDateStr(d);
+        }
+
+        function calcUrgency(nextDueDate, remindBeforeDays) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const parts = String(nextDueDate || '').split('-').map(Number);
+            if (parts.length !== 3) return { urgency: 'safe', daysRemaining: 999 };
+            const due = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0);
+            const daysRemaining = Math.round((due.getTime() - today.getTime()) / 86400000);
+            const remind = Math.max(1, parseInt(remindBeforeDays, 10) || 30);
+            let urgency = 'safe';
+            if (daysRemaining < 0) urgency = 'overdue';
+            else if (daysRemaining <= remind) urgency = 'due_soon';
+            return { urgency, daysRemaining };
+        }
+
+        function calcLifecyclePct(lastDate, nextDate, daysRemaining) {
+            if (daysRemaining <= 0) return 100;
+            if (!lastDate || !nextDate) return 0;
+            const totalMs = new Date(nextDate).getTime() - new Date(lastDate).getTime();
+            if (totalMs <= 0) return 100;
+            const elapsedMs = Date.now() - new Date(lastDate).getTime();
+            return Math.max(4, Math.min(100, Math.round((elapsedMs / totalMs) * 100)));
+        }
+
+        function escapeHtml(str) {
+            return String(str ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+        }
+
+        function isAdminUser() {
+            return !currentUser || currentUser.role === 'admin' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN' || currentUser.id === 'shp';
+        }
+
+        function getSampleInspections() {
+            const now = new Date();
+            const offset = (days) => toDateStr(new Date(now.getTime() + days * 86400000));
+            return [
+                { id: 'insp_boiler_b2', equipmentCode: 'TB-BOI-01', equipmentName: 'Nồi hơi nước nóng trung tâm số 1 (3000L)', category: 'ap_luc', location: 'Phòng lò hơi · Tầng hầm B2', inspectionAgency: 'Trung tâm Kiểm định KTAT Khu vực II', certificateNo: 'KD-2025-11842', cycleMonths: 12, lastInspectionDate: offset(-368), nextDueDate: offset(-3), remindBeforeDays: 30, status: 'scheduled', responsibleUid: 'dvphuong', responsibleName: 'Dương Văn Phương', reminderAcknowledged: false, notes: 'Đã quá hạn 3 ngày — đã liên hệ kiểm định viên xuống thử áp và kiểm tra van an toàn trong tuần này.' },
+                { id: 'insp_elv_a1', equipmentCode: 'TB-ELV-01', equipmentName: 'Thang máy khách số 1 — Ocean Wing', category: 'thang_may', location: 'Ocean Wing · Sảnh chính', inspectionAgency: 'Công ty CP Kiểm định An toàn Thiết bị Công nghiệp', certificateNo: 'KD-2025-19405', cycleMonths: 12, lastInspectionDate: offset(-357), nextDueDate: offset(8), remindBeforeDays: 30, status: 'scheduled', responsibleUid: 'hvthuc', responsibleName: 'Huỳnh Văn Thúc', reminderAcknowledged: false, notes: 'Chuẩn bị tải mẫu 1000kg và hồ sơ bảo trì 12 tháng trước ngày kiểm định an toàn.' },
+                { id: 'insp_pccc_pump', equipmentCode: 'TB-PCCC-01', equipmentName: 'Cụm bơm chữa cháy Diesel & Điện chính', category: 'pccc', location: 'Phòng bơm PCCC · Tầng hầm', inspectionAgency: 'Phòng Cảnh sát PCCC & CNCH Khu vực', certificateNo: 'PCCC-2026-0412', cycleMonths: 6, lastInspectionDate: offset(-165), nextDueDate: offset(17), remindBeforeDays: 30, status: 'valid', responsibleUid: 'shp', responsibleName: 'Sơn Hoài Phương', reminderAcknowledged: false, notes: 'Chạy thử không tải hàng tuần ổn định. Cần chốt lịch kiểm tra áp lực họng nước vách tường.' },
+                { id: 'insp_chiller_01', equipmentCode: 'TB-CHW-01', equipmentName: 'Bình bay hơi & bình ngưng cụm Chiller số 1', category: 'hvac', location: 'Phòng máy Chiller', inspectionAgency: 'Trung tâm Kiểm định KTAT Khu vực II', certificateNo: 'KD-2025-22190', cycleMonths: 12, lastInspectionDate: offset(-340), nextDueDate: offset(25), remindBeforeDays: 30, status: 'valid', responsibleUid: 'nvchau', responsibleName: 'Nguyễn Văn Châu', reminderAcknowledged: false, notes: 'Cần hiệu chuẩn lại 02 áp kế đầu đẩy song song với lịch kiểm định bình chịu áp lực.' },
+                { id: 'insp_substation_01', equipmentCode: 'TB-ELC-01', equipmentName: 'Trạm biến áp 1600kVA & Hệ thống chống sét tiếp địa', category: 'dien', location: 'Phòng Hạ Thế', inspectionAgency: 'Trung tâm Thí nghiệm Điện (ETC)', certificateNo: 'ETC-2026-0738', cycleMonths: 12, lastInspectionDate: offset(-225), nextDueDate: offset(140), remindBeforeDays: 45, status: 'valid', responsibleUid: 'hvthuc', responsibleName: 'Huỳnh Văn Thúc', reminderAcknowledged: true, notes: 'Điện trở tiếp địa đo gần nhất 1.4 Ohm (đạt chuẩn < 4 Ohm). Tem kiểm định còn nguyên vẹn.' },
+                { id: 'insp_gauges_lab', equipmentCode: 'TB-CAL-03', equipmentName: 'Bộ 12 đồng hồ áp suất & cảm biến nhiệt phòng máy', category: 'do_luong', location: 'Phòng kỹ thuật trung tâm', inspectionAgency: 'Trung tâm Kỹ thuật Tiêu chuẩn Đo lường Chất lượng (QUATEST 3)', certificateNo: 'QT3-2026-5521', cycleMonths: 12, lastInspectionDate: offset(-270), nextDueDate: offset(95), remindBeforeDays: 30, status: 'valid', responsibleUid: 'tvhung', responsibleName: 'Trịnh Văn Hùng', reminderAcknowledged: true, notes: 'Tất cả tem hiệu chuẩn còn hạn, lưu giấy chứng nhận bản gốc tại tủ hồ sơ kỹ thuật.' }
+            ];
+        }
+
+        // ==================== LƯU TRỮ (LOCALSTORAGE + FIRESTORE) ====================
+        function saveLocal() {
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(inspections)); } catch (e) {}
+        }
+
+        function loadLocal() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) return parsed;
+                }
+            } catch (e) {}
+            return getSampleInspections();
+        }
+
+        async function saveItemToCloud(item) {
+            saveLocal();
+            if (!db) return;
+            try {
+                await db.collection('equipment_inspections').doc(item.id).set(item, { merge: true });
+            } catch (e) {
+                console.warn('Firestore save notice:', e.message || e);
+            }
+        }
+
+        async function deleteItemFromCloud(id) {
+            saveLocal();
+            if (!db) return;
+            try {
+                await db.collection('equipment_inspections').doc(id).delete();
+            } catch (e) {
+                console.warn('Firestore delete notice:', e.message || e);
+            }
+        }
+
+        function initFirestoreSync() {
+            const pill = document.getElementById('sync-status-pill');
+            if (!db) {
+                if (pill) pill.textContent = 'Offline Local';
+                return;
+            }
+            db.collection('equipment_inspections').onSnapshot(snap => {
+                if (!snap.empty) {
+                    const list = [];
+                    snap.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
+                    inspections = list;
+                    saveLocal();
+                    renderInspections();
+                } else if (!snap.metadata.fromCache && inspections.length === 0) {
+                    inspections = getSampleInspections();
+                    saveLocal();
+                    renderInspections();
+                }
+                if (pill) pill.textContent = 'Cloud Sync';
+            }, err => {
+                console.warn('Firestore sync fallback:', err.message || err);
+                if (pill) pill.textContent = 'Local Mode';
+            });
+        }
+
+        // ==================== RENDER GIAO DIỆN ====================
+        function renderCategoryPills() {
+            const bar = document.getElementById('category-filter-bar');
+            if (!bar) return;
+            const items = [{ key: 'all', label: 'Tất cả nhóm', icon: 'fa-layer-group' }]
+                .concat(Object.entries(CATEGORIES).map(([k, v]) => ({ key: k, label: v.label, icon: v.icon })));
+
+            bar.innerHTML = items.map(it => {
+                const active = categoryFilter === it.key;
+                const cls = active
+                    ? 'bg-slate-900 dark:bg-indigo-600 text-white font-extrabold border border-slate-900 dark:border-indigo-500'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 font-bold';
+                return `<button type="button" onclick="setCategoryFilter('${it.key}')" class="px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1.5 whitespace-nowrap transition cursor-pointer ${cls}">
+                    <i class="fa-solid ${it.icon} text-[11px]"></i><span>${it.label}</span>
+                </button>`;
+            }).join('');
+        }
+
+        function setUrgencyFilter(urg) {
+            urgencyFilter = urg;
+            document.querySelectorAll('.urg-pill').forEach(btn => {
+                const active = btn.dataset.urg === urg;
+                btn.className = active
+                    ? 'urg-pill px-3.5 py-2 rounded-xl text-xs font-extrabold bg-indigo-600 text-white shadow-xs whitespace-nowrap cursor-pointer'
+                    : 'urg-pill px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-600 whitespace-nowrap cursor-pointer';
+            });
+            renderInspections();
+        }
+
+        function setCategoryFilter(cat) {
+            categoryFilter = cat;
+            renderCategoryPills();
+            renderInspections();
+        }
+
+        function renderInspections() {
+            const admin = isAdminUser();
+            document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !admin));
+
+            const enriched = inspections.map(item => {
+                const { urgency, daysRemaining } = calcUrgency(item.nextDueDate, item.remindBeforeDays);
+                return { item, urgency, daysRemaining };
+            }).sort((a, b) => a.daysRemaining - b.daysRemaining);
+
+            const total = enriched.length;
+            const overdue = enriched.filter(x => x.urgency === 'overdue');
+            const dueSoon = enriched.filter(x => x.urgency === 'due_soon');
+            const safe = enriched.filter(x => x.urgency === 'safe');
+
+            document.getElementById('kpi-total').textContent = total;
+            document.getElementById('kpi-overdue').textContent = overdue.length;
+            document.getElementById('kpi-soon').textContent = dueSoon.length;
+            document.getElementById('kpi-safe').textContent = safe.length;
+
+            // Alert banner
+            const alerts = [...overdue, ...dueSoon];
+            const banner = document.getElementById('alert-banner');
+            if (alerts.length > 0) {
+                banner.classList.remove('hidden');
+                document.getElementById('alert-banner-title').textContent = `Có ${alerts.length} thiết bị cần chú ý lịch kiểm định (${overdue.length} quá hạn, ${dueSoon.length} sắp tới hạn)`;
+                const unackCount = alerts.filter(x => !x.item.reminderAcknowledged).length;
+                document.getElementById('alert-banner-desc').textContent = unackCount > 0
+                    ? `${unackCount} cảnh báo chưa được xác nhận nắm lịch. Vui lòng rà soát và đặt lịch kiểm định viên.`
+                    : 'Tất cả cảnh báo đã được xác nhận nắm lịch.';
+                document.getElementById('alert-banner-chips').innerHTML = alerts.slice(0, 6).map(({ item, urgency, daysRemaining }) => {
+                    const chipCls = urgency === 'overdue'
+                        ? 'bg-rose-700 text-white'
+                        : 'bg-amber-600 text-white';
+                    const dayTxt = daysRemaining < 0 ? `Quá ${Math.abs(daysRemaining)} ngày` : (daysRemaining === 0 ? 'Hôm nay' : `Còn ${daysRemaining} ngày`);
+                    return `<button type="button" onclick="openInspectionModal('renew', '${item.id}')" class="px-3 py-1 rounded-lg text-xs font-bold font-mono ${chipCls} hover:opacity-90 transition cursor-pointer">
+                        ${escapeHtml(item.equipmentCode)} · ${dayTxt}
+                    </button>`;
+                }).join('');
+            } else {
+                banner.classList.add('hidden');
+            }
+
+            // Browser notification once per session if granted
+            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                const unack = alerts.filter(x => !x.item.reminderAcknowledged);
+                const sessKey = `hotetech_insp_notified_${toDateStr()}_${unack.length}`;
+                if (unack.length > 0 && !sessionStorage.getItem(sessKey)) {
+                    sessionStorage.setItem(sessKey, '1');
+                    const first = unack[0];
+                    const body = first.daysRemaining < 0
+                        ? `${first.item.equipmentName} đã quá hạn ${Math.abs(first.daysRemaining)} ngày.`
+                        : `${first.item.equipmentName} còn ${first.daysRemaining} ngày tới hạn kiểm định.`;
+                    try { new Notification(`HoteTech · ${unack.length} thiết bị cần kiểm định`, { body }); } catch (e) {}
+                }
+            }
+
+            // Filter
+            const q = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
+            const filtered = enriched.filter(({ item, urgency }) => {
+                if (urgencyFilter !== 'all' && urgency !== urgencyFilter) return false;
+                if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
+                if (!q) return true;
+                return [item.equipmentCode, item.equipmentName, item.location, item.inspectionAgency, item.certificateNo, item.responsibleName, item.notes]
+                    .some(v => String(v || '').toLowerCase().includes(q));
+            });
+
+            const grid = document.getElementById('inspections-grid');
+            if (filtered.length === 0) {
+                grid.innerHTML = `<div class="col-span-full crisp-card rounded-2xl p-10 text-center space-y-2">
+                    <i class="fa-solid fa-folder-open text-3xl text-slate-400 dark:text-slate-500"></i>
+                    <p class="text-sm font-bold text-slate-700 dark:text-slate-200">Không có thiết bị kiểm định nào khớp bộ lọc.</p>
+                </div>`;
+                return;
+            }
+
+            grid.innerHTML = filtered.map(({ item, urgency, daysRemaining }) => {
+                const cat = CATEGORIES[item.category] || { label: item.category || 'Khác', icon: 'fa-wrench', badge: 'bg-slate-100 text-slate-800 border border-slate-300' };
+                const st = STATUS_MAP[item.status] || STATUS_MAP.valid;
+                const pct = calcLifecyclePct(item.lastInspectionDate, item.nextDueDate, daysRemaining);
+
+                let borderCls = 'border-l-4 border-l-emerald-600';
+                let dueBadgeCls = 'bg-emerald-100 text-emerald-950 border border-emerald-300 dark:bg-emerald-900/80 dark:text-emerald-100 dark:border-emerald-700';
+                let barCls = 'bg-emerald-600';
+                let dueText = `Còn ${daysRemaining} ngày`;
+
+                if (urgency === 'overdue') {
+                    borderCls = 'border-l-4 border-l-rose-600';
+                    dueBadgeCls = 'bg-rose-700 text-white shadow-xs';
+                    barCls = 'bg-rose-600';
+                    dueText = `Quá hạn ${Math.abs(daysRemaining)} ngày`;
+                } else if (urgency === 'due_soon') {
+                    borderCls = 'border-l-4 border-l-amber-500';
+                    dueBadgeCls = 'bg-amber-600 text-white shadow-xs';
+                    barCls = 'bg-amber-500';
+                    dueText = daysRemaining === 0 ? 'Hết hạn hôm nay' : `Còn ${daysRemaining} ngày`;
+                }
+
+                const canRenewOrEdit = admin || (currentUser && (item.responsibleUid === currentUser.id || item.responsibleName === currentUser.name));
+
+                return `
+                <article class="crisp-card rounded-2xl p-4 sm:p-5 ${borderCls} flex flex-col justify-between space-y-3.5">
+                    <div class="space-y-3">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex items-center flex-wrap gap-1.5">
+                                <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-mono font-bold bg-slate-900 dark:bg-slate-700 text-white tracking-tight">${escapeHtml(item.equipmentCode)}</span>
+                                <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-bold ${cat.badge}"><i class="fa-solid ${cat.icon} mr-1"></i>${cat.label}</span>
+                                <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-bold ${st.cls}">${st.label}</span>
+                            </div>
+                            <span class="px-2.5 py-1 rounded-xl text-xs font-extrabold whitespace-nowrap shrink-0 ${dueBadgeCls}">${dueText}</span>
+                        </div>
+
+                        <div>
+                            <h3 class="text-[15px] sm:text-base font-extrabold text-slate-950 dark:text-white leading-snug">${escapeHtml(item.equipmentName)}</h3>
+                            <p class="text-[13px] text-slate-700 dark:text-slate-300 font-semibold mt-1"><i class="fa-solid fa-location-dot text-teal-700 dark:text-teal-400 mr-1.5"></i>${escapeHtml(item.location)}</p>
+                        </div>
+
+                        <!-- Progress bar -->
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between text-xs font-semibold">
+                                <span class="text-slate-700 dark:text-slate-300">KĐ gần nhất: <b class="font-mono font-bold text-slate-950 dark:text-white">${formatViDate(item.lastInspectionDate)}</b></span>
+                                <span class="text-slate-700 dark:text-slate-300">Hạn tới: <b class="font-mono font-bold ${urgency === 'overdue' ? 'text-rose-700 dark:text-rose-300' : 'text-indigo-800 dark:text-indigo-300'}">${formatViDate(item.nextDueDate)}</b></span>
+                            </div>
+                            <div class="w-full h-2.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                <div class="h-full rounded-full ${barCls} transition-all duration-300" style="width:${pct}%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Meta details -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50 dark:bg-slate-800/80 rounded-xl p-3 border border-slate-200 dark:border-slate-700">
+                            <div class="truncate" title="${escapeHtml(item.inspectionAgency)}"><span class="text-slate-600 dark:text-slate-400 font-semibold">Đơn vị KĐ:</span> <b class="text-slate-950 dark:text-slate-100">${escapeHtml(item.inspectionAgency)}</b></div>
+                            <div class="truncate"><span class="text-slate-600 dark:text-slate-400 font-semibold">Số GCN:</span> <b class="font-mono text-slate-950 dark:text-slate-100">${escapeHtml(item.certificateNo || 'Chưa cập nhật')}</b></div>
+                            <div class="truncate"><span class="text-slate-600 dark:text-slate-400 font-semibold">Phụ trách:</span> <b class="text-indigo-800 dark:text-indigo-300">${escapeHtml(item.responsibleName || '--')}</b></div>
+                            <div><span class="text-slate-600 dark:text-slate-400 font-semibold">Chu kỳ:</span> <b class="font-mono text-slate-950 dark:text-slate-100">${item.cycleMonths || 12} tháng</b> · Nhắc trước <b class="font-mono text-slate-950 dark:text-slate-100">${item.remindBeforeDays || 30} ngày</b></div>
+                        </div>
+
+                        ${item.notes ? `<p class="text-xs leading-relaxed text-slate-800 dark:text-slate-200 font-medium bg-amber-50 dark:bg-slate-800/70 px-3.5 py-2.5 rounded-xl border border-amber-200 dark:border-slate-700">${escapeHtml(item.notes)}</p>` : ''}
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="pt-3 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 no-print">
+                        <div>
+                            ${(urgency !== 'safe' && !item.reminderAcknowledged)
+                                ? `<button type="button" onclick="acknowledgeInspection('${item.id}')" class="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/70 dark:hover:bg-amber-900 text-amber-950 dark:text-amber-100 border border-amber-300 dark:border-amber-700 text-xs font-extrabold transition cursor-pointer"><i class="fa-solid fa-check-double mr-1.5"></i>Xác nhận nắm lịch</button>`
+                                : (item.reminderAcknowledged ? `<span class="text-xs font-bold text-emerald-700 dark:text-emerald-300"><i class="fa-solid fa-circle-check mr-1.5"></i>Đã nắm lịch</span>` : `<span class="text-xs font-semibold text-slate-600 dark:text-slate-400">Đang theo dõi</span>`)
+                            }
+                        </div>
+                        <div class="flex items-center space-x-1.5">
+                            ${canRenewOrEdit ? `<button type="button" onclick="openInspectionModal('renew', '${item.id}')" class="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition cursor-pointer" title="Ghi nhận hoàn tất kiểm định & gia hạn chu kỳ mới"><i class="fa-solid fa-rotate mr-1.5"></i>Gia hạn KĐ</button>` : ''}
+                            ${canRenewOrEdit ? `<button type="button" onclick="openInspectionModal('edit', '${item.id}')" class="px-2.5 py-1.5 rounded-xl bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/70 dark:hover:bg-indigo-900 text-indigo-800 dark:text-indigo-200 text-xs font-bold transition cursor-pointer" title="Chỉnh sửa"><i class="fa-solid fa-pen"></i></button>` : ''}
+                            ${admin ? `<button type="button" onclick="deleteInspection('${item.id}')" class="px-2.5 py-1.5 rounded-xl bg-rose-100 hover:bg-rose-200 dark:bg-rose-900/70 dark:hover:bg-rose-900 text-rose-800 dark:text-rose-200 text-xs font-bold transition cursor-pointer" title="Xóa"><i class="fa-solid fa-trash"></i></button>` : ''}
+                        </div>
+                    </div>
+                </article>`;
+            }).join('');
+        }
+
+        // ==================== MODAL & CRUD ====================
+        function populateStaffSelect(selectedUid = '') {
+            const sel = document.getElementById('inp-responsible');
+            if (!sel) return;
+            const activeStaff = staffList.filter(s => s.active !== false);
+            const pool = activeStaff.length ? activeStaff : staffList;
+            sel.innerHTML = pool.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}${s.dept ? ' (' + escapeHtml(s.dept) + ')' : ''}</option>`).join('');
+            if (selectedUid && pool.some(s => s.id === selectedUid)) {
+                sel.value = selectedUid;
+            }
+        }
+
+        function recalcNextDueDate() {
+            const last = document.getElementById('inp-last-date').value;
+            const cycle = parseInt(document.getElementById('inp-cycle').value, 10) || 12;
+            if (last) {
+                document.getElementById('inp-next-date').value = addMonths(last, cycle);
+            }
+        }
+
+        function openInspectionModal(mode, id = null) {
+            const modal = document.getElementById('modal-inspection');
+            const form = document.getElementById('form-inspection');
+            form.reset();
+
+            document.getElementById('inp-mode').value = mode;
+            document.getElementById('inp-id').value = id || '';
+            const today = toDateStr();
+
+            if (mode === 'create') {
+                document.getElementById('modal-title').textContent = 'Thêm Thiết Bị Kiểm Định Mới';
+                document.getElementById('modal-subtitle').textContent = 'Khai báo thiết bị cần kiểm định định kỳ';
+                document.getElementById('btn-save-inspection').textContent = 'Thêm Thiết Bị';
+                document.getElementById('inp-code').value = `TB-${Math.floor(100 + Math.random() * 900)}`;
+                document.getElementById('inp-code').readOnly = false;
+                document.getElementById('inp-agency').value = 'Trung tâm Kiểm định KTAT Khu vực II';
+                document.getElementById('inp-cycle').value = 12;
+                document.getElementById('inp-last-date').value = today;
+                document.getElementById('inp-next-date').value = addMonths(today, 12);
+                document.getElementById('inp-remind').value = 30;
+                document.getElementById('inp-status').value = 'valid';
+                populateStaffSelect(currentUser?.id || staffList[0]?.id || '');
+            } else {
+                const item = inspections.find(x => x.id === id);
+                if (!item) return;
+                document.getElementById('inp-code').value = item.equipmentCode || '';
+                document.getElementById('inp-code').readOnly = !isAdminUser();
+                document.getElementById('inp-name').value = item.equipmentName || '';
+                document.getElementById('inp-category').value = item.category || 'thang_may';
+                document.getElementById('inp-location').value = item.location || '';
+                document.getElementById('inp-agency').value = item.inspectionAgency || '';
+                document.getElementById('inp-cycle').value = item.cycleMonths || 12;
+                document.getElementById('inp-remind').value = item.remindBeforeDays || 30;
+                populateStaffSelect(item.responsibleUid);
+
+                if (mode === 'renew') {
+                    document.getElementById('modal-title').textContent = `Gia Hạn Kiểm Định: ${item.equipmentCode}`;
+                    document.getElementById('modal-subtitle').textContent = 'Ghi nhận đã hoàn tất kiểm định & tự động tính chu kỳ tiếp theo';
+                    document.getElementById('btn-save-inspection').textContent = 'Xác Nhận Gia Hạn';
+                    document.getElementById('inp-last-date').value = today;
+                    document.getElementById('inp-next-date').value = addMonths(today, item.cycleMonths || 12);
+                    document.getElementById('inp-cert').value = '';
+                    document.getElementById('inp-status').value = 'valid';
+                    document.getElementById('inp-notes').value = `Hoàn tất kiểm định định kỳ ngày ${formatViDate(today)}. Đạt chuẩn an toàn vận hành.`;
+                } else {
+                    document.getElementById('modal-title').textContent = `Chỉnh Sửa: ${item.equipmentCode}`;
+                    document.getElementById('modal-subtitle').textContent = 'Cập nhật hồ sơ kiểm định thiết bị';
+                    document.getElementById('btn-save-inspection').textContent = 'Lưu Thay Đổi';
+                    document.getElementById('inp-last-date').value = item.lastInspectionDate || today;
+                    document.getElementById('inp-next-date').value = item.nextDueDate || addMonths(today, item.cycleMonths || 12);
+                    document.getElementById('inp-cert').value = item.certificateNo || '';
+                    document.getElementById('inp-status').value = item.status || 'valid';
+                    document.getElementById('inp-notes').value = item.notes || '';
+                }
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeInspectionModal() {
+            const modal = document.getElementById('modal-inspection');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        async function handleSaveInspection(e) {
+            e.preventDefault();
+            const mode = document.getElementById('inp-mode').value;
+            const id = document.getElementById('inp-id').value;
+            const respUid = document.getElementById('inp-responsible').value;
+            const respObj = staffList.find(s => s.id === respUid) || currentUser || { id: respUid, name: 'Kỹ thuật viên' };
+
+            const payload = {
+                id: (mode === 'create') ? ('insp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)) : id,
+                equipmentCode: document.getElementById('inp-code').value.trim().toUpperCase(),
+                equipmentName: document.getElementById('inp-name').value.trim(),
+                category: document.getElementById('inp-category').value,
+                location: document.getElementById('inp-location').value.trim(),
+                inspectionAgency: document.getElementById('inp-agency').value.trim(),
+                certificateNo: document.getElementById('inp-cert').value.trim(),
+                cycleMonths: Math.max(1, Math.min(60, parseInt(document.getElementById('inp-cycle').value, 10) || 12)),
+                lastInspectionDate: document.getElementById('inp-last-date').value,
+                nextDueDate: document.getElementById('inp-next-date').value,
+                remindBeforeDays: Math.max(1, Math.min(180, parseInt(document.getElementById('inp-remind').value, 10) || 30)),
+                status: document.getElementById('inp-status').value,
+                responsibleUid: respObj.id,
+                responsibleName: respObj.name,
+                notes: document.getElementById('inp-notes').value.trim(),
+                updatedAt: Date.now(),
+                updatedBy: currentUser?.name || 'Admin'
+            };
+
+            if (mode === 'create') {
+                payload.reminderAcknowledged = false;
+                inspections.unshift(payload);
+                showToast(`Đã thêm lịch kiểm định ${payload.equipmentCode}.`);
+            } else {
+                const existing = inspections.find(x => x.id === id);
+                payload.reminderAcknowledged = (mode === 'renew') ? false : Boolean(existing?.reminderAcknowledged);
+                inspections = inspections.map(x => x.id === id ? { ...x, ...payload } : x);
+                showToast(mode === 'renew' ? `Đã gia hạn kiểm định ${payload.equipmentCode}!` : `Đã cập nhật ${payload.equipmentCode}.`);
+            }
+
+            closeInspectionModal();
+            renderInspections();
+            await saveItemToCloud(payload);
+        }
+
+        async function acknowledgeInspection(id) {
+            const item = inspections.find(x => x.id === id);
+            if (!item) return;
+            item.reminderAcknowledged = true;
+            item.updatedAt = Date.now();
+            renderInspections();
+            showToast(`Đã xác nhận nắm lịch kiểm định ${item.equipmentCode}.`);
+            await saveItemToCloud(item);
+        }
+
+        async function deleteInspection(id) {
+            if (!isAdminUser()) return;
+            const item = inspections.find(x => x.id === id);
+            if (!item || !confirm(`Xóa vĩnh viễn lịch kiểm định thiết bị "${item.equipmentName}" (${item.equipmentCode})?`)) return;
+            inspections = inspections.filter(x => x.id !== id);
+            renderInspections();
+            showToast(`Đã xóa thiết bị ${item.equipmentCode}.`);
+            await deleteItemFromCloud(id);
+        }
+
+        async function seedSampleInspections() {
+            if (!isAdminUser()) return;
+            if (inspections.length > 0 && !confirm('Nạp lại 6 thiết bị kiểm định mẫu? (Các thiết bị trùng mã ID mẫu sẽ được ghi đè)')) return;
+            const samples = getSampleInspections();
+            const map = new Map(inspections.map(x => [x.id, x]));
+            samples.forEach(s => map.set(s.id, s));
+            inspections = Array.from(map.values());
+            renderInspections();
+            for (const s of samples) { await saveItemToCloud(s); }
+            showToast('Đã nạp 6 thiết bị kiểm định mẫu.');
+        }
+
+        // ==================== NHẬP / XUẤT JSON, EXCEL, THÔNG BÁO ====================
+        function exportJSON() {
+            const blob = new Blob([JSON.stringify(inspections, null, 2)], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `kiem-dinh-thiet-bi-${toDateStr()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast(`Đã sao lưu ${inspections.length} thiết bị ra file JSON.`);
+        }
+
+        async function handleImportJSON(e) {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (!file) return;
+            try {
+                const parsed = JSON.parse(await file.text());
+                if (!Array.isArray(parsed)) throw new Error('Sai định dạng');
+                const valid = parsed.filter(x => x && typeof x.equipmentCode === 'string' && typeof x.equipmentName === 'string' && typeof x.nextDueDate === 'string');
+                if (!valid.length) { showToast('File JSON không có bản ghi hợp lệ.', true); return; }
+                inspections = valid.map((x, idx) => ({ ...x, id: x.id || `insp_imp_${Date.now()}_${idx}` }));
+                renderInspections();
+                for (const item of inspections) { await saveItemToCloud(item); }
+                showToast(`Đã khôi phục ${inspections.length} thiết bị từ file JSON.`);
+            } catch (err) {
+                showToast('Không thể đọc file JSON. Vui lòng chọn đúng file sao lưu.', true);
+            }
+        }
+
+        function exportExcel() {
+            if (typeof XLSX === 'undefined') { showToast('Chưa tải được thư viện Excel.', true); return; }
+            const rows = [['Mã thiết bị', 'Tên thiết bị', 'Nhóm', 'Vị trí', 'Đơn vị kiểm định', 'Số GCN', 'Chu kỳ (tháng)', 'KĐ gần nhất', 'Hạn tiếp theo', 'Còn lại (ngày)', 'Trạng thái', 'Người phụ trách', 'Ghi chú']];
+            inspections.forEach(item => {
+                const { daysRemaining } = calcUrgency(item.nextDueDate, item.remindBeforeDays);
+                rows.push([
+                    item.equipmentCode, item.equipmentName, CATEGORIES[item.category]?.label || item.category,
+                    item.location, item.inspectionAgency, item.certificateNo || '', item.cycleMonths || 12,
+                    formatViDate(item.lastInspectionDate), formatViDate(item.nextDueDate), daysRemaining,
+                    STATUS_MAP[item.status]?.label || item.status, item.responsibleName || '', item.notes || ''
+                ]);
+            });
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            XLSX.utils.book_append_sheet(wb, ws, 'Kiem_Dinh_Thiet_Bi');
+            XLSX.writeFile(wb, `Lich_Kiem_Dinh_Thiet_Bi_${toDateStr()}.xlsx`);
+            showToast('Đã xuất danh sách kiểm định ra Excel!');
+        }
+
+        async function requestNotifPermission() {
+            if (typeof Notification === 'undefined') { showToast('Trình duyệt không hỗ trợ Notification.', true); return; }
+            const perm = await Notification.requestPermission();
+            updateNotifBtn();
+            if (perm === 'granted') {
+                showToast('Đã bật thông báo nhắc lịch kiểm định!');
+            } else {
+                showToast('Chưa cấp quyền thông báo trình duyệt.', true);
+            }
+        }
+
+        function updateNotifBtn() {
+            const label = document.getElementById('notif-label');
+            const icon = document.getElementById('notif-icon');
+            if (!label || !icon || typeof Notification === 'undefined') return;
+            if (Notification.permission === 'granted') {
+                label.textContent = 'Đã bật nhắc';
+                icon.className = 'fa-solid fa-bell text-emerald-700 text-xs';
+            } else if (Notification.permission === 'denied') {
+                label.textContent = 'Bị chặn TB';
+                icon.className = 'fa-solid fa-bell-slash text-rose-600 text-xs';
+            }
+        }
+
+        function showToast(msg, isError = false) {
+            const box = document.getElementById('toast-box');
+            if (!box) return;
+            box.innerHTML = `<div class="px-4 py-3 rounded-2xl shadow-xl text-xs font-bold flex items-center space-x-2 ${isError ? 'bg-rose-700 text-white' : 'bg-slate-900 text-white border border-slate-700'}">
+                <i class="fa-solid ${isError ? 'fa-circle-exclamation' : 'fa-circle-check text-emerald-400'}"></i>
+                <span>${escapeHtml(msg)}</span>
+            </div>`;
+            box.classList.remove('opacity-0', 'translate-y-3');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => box.classList.add('opacity-0', 'translate-y-3'), 3200);
+        }
+
+        // ==================== CẦU NỐI ĐỒNG BỘ TỪ TASKMANA ====================
+        if (isEmbeddedInTaskmana) {
+            window.addEventListener('message', (event) => {
+                const msg = event.data;
+                if (!msg) return;
+                if (msg.type === 'TASKMANA_SYNC_AUTH') {
+                    if (Array.isArray(msg.users) && msg.users.length > 0) {
+                        staffList = msg.users;
+                    }
+                    if (msg.currentUser) {
+                        currentUser = msg.currentUser;
+                    }
+                    if (typeof msg.isDark === 'boolean') {
+                        document.documentElement.classList.toggle('dark', msg.isDark);
+                    }
+                    renderInspections();
+                } else if (msg.type === 'TASKMANA_SYNC_THEME' && typeof msg.isDark === 'boolean') {
+                    document.documentElement.classList.toggle('dark', msg.isDark);
+                }
+            });
+        }
+
+        // ==================== KHỞI CHẠY ====================
+        window.addEventListener('DOMContentLoaded', () => {
+            inspections = loadLocal();
+            renderCategoryPills();
+            updateNotifBtn();
+            renderInspections();
+            initFirestoreSync();
+            if (isEmbeddedInTaskmana) {
+                window.parent.postMessage({ type: 'KIEMDINH_REQUEST_AUTH' }, '*');
+            }
+        });
+    </script>
+</body>
+</html>
