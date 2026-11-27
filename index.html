@@ -870,6 +870,10 @@
                         <i class="fa-solid fa-users-gear w-5 text-center text-sm"></i>
                         <span>Quản trị Thành viên</span>
                     </button>
+                    <button onclick="openSystemBackupModal(); toggleMobileSidebar(false);" id="nav-system-backup" class="w-full flex items-center space-x-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all text-emerald-200 hover:bg-emerald-500/20 hover:text-white admin-only hidden">
+                        <i class="fa-solid fa-database w-5 text-center text-sm text-emerald-400"></i>
+                        <span>Sao lưu & Khôi phục</span>
+                    </button>
                 </nav>
 
                 <div class="p-4 border-t border-white/10 bg-black/30">
@@ -1418,6 +1422,26 @@
                                     </button>
                                 </div>
                             </form>
+                        </div>
+
+                        <!-- KHỐI SAO LƯU & KHÔI PHỤC TOÀN HỆ THỐNG (CHỈ ADMIN) -->
+                        <div class="admin-only hidden ios-card p-5 sm:p-6 max-w-2xl mx-auto border border-emerald-300/60 dark:border-emerald-700/50 bg-emerald-50/40 dark:bg-emerald-950/20">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div class="flex items-start space-x-3.5">
+                                    <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center text-lg shadow-md flex-shrink-0">
+                                        <i class="fa-solid fa-database"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">Sao Lưu & Khôi Phục Toàn Hệ Thống</h4>
+                                        <p class="text-xs font-medium text-slate-600 dark:text-slate-300 mt-0.5">Xuất hoặc phục hồi toàn bộ Nhân sự, Công việc, Phân ca, Kiểm định thiết bị và Dự án Phòng & Lan Can vào 1 file JSON duy nhất.</p>
+                                        <p id="profile-last-backup-label" class="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 mt-1.5">Chưa có bản sao lưu gần đây trên thiết bị này.</p>
+                                    </div>
+                                </div>
+                                <button type="button" onclick="openSystemBackupModal()" class="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold rounded-2xl shadow-md transition-all text-xs sm:text-sm flex items-center justify-center space-x-2 whitespace-nowrap cursor-pointer">
+                                    <i class="fa-solid fa-cloud-arrow-down"></i>
+                                    <span>Mở Trình Sao Lưu</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -10087,5 +10111,740 @@ return;
             </div>
         </div>
     </div>
+
+    <!-- ==================== MODAL SAO LƯU & KHÔI PHỤC TOÀN HỆ THỐNG (ADMIN) ==================== -->
+    <div id="modal-system-backup" class="fixed inset-0 z-[85] bg-slate-950/60 backdrop-blur-md hidden items-center justify-center p-3 sm:p-5" onclick="if(event.target===this) closeSystemBackupModal()">
+        <div class="ios-card w-full max-w-3xl max-h-[92vh] overflow-hidden bg-white/95 dark:bg-slate-900/95 shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col">
+            <!-- Header -->
+            <div class="px-5 sm:px-6 py-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 text-white flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-database"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base sm:text-lg font-extrabold tracking-tight !text-white">Sao Lưu & Khôi Phục Toàn Hệ Thống</h3>
+                        <p class="text-[11px] font-medium !text-emerald-50/90">Đồng bộ trọn gói 2 cơ sở dữ liệu: Taskmana + Kiểm định (taskmana-shp) & Phòng/Lan can (roomtracking-9c5ab)</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeSystemBackupModal()" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition cursor-pointer">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Tabs Switcher -->
+            <div class="px-5 sm:px-6 pt-3 pb-2 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 bg-slate-50/80 dark:bg-slate-800/60">
+                <div class="flex items-center space-x-2">
+                    <button type="button" id="sys-tab-btn-backup" onclick="switchSystemBackupTab('backup')" class="px-4 py-2 rounded-xl text-xs font-extrabold bg-emerald-600 text-white shadow-sm transition cursor-pointer flex items-center space-x-1.5">
+                        <i class="fa-solid fa-cloud-arrow-down"></i>
+                        <span>Sao Lưu Toàn Bộ (.JSON)</span>
+                    </button>
+                    <button type="button" id="sys-tab-btn-restore" onclick="switchSystemBackupTab('restore')" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 transition cursor-pointer flex items-center space-x-1.5">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span>Khôi Phục Từ File</span>
+                    </button>
+                </div>
+                <span id="sys-backup-last-time" class="text-[11px] font-bold text-slate-500 dark:text-slate-300 hidden sm:inline"></span>
+            </div>
+
+            <!-- Body -->
+            <div class="p-5 sm:p-6 overflow-y-auto custom-scrollbar space-y-5 flex-1">
+                <!-- Progress & Status Box -->
+                <div id="sys-backup-progress-box" class="hidden p-4 rounded-2xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50/80 dark:bg-indigo-950/40 space-y-2">
+                    <div class="flex items-center justify-between text-xs font-extrabold">
+                        <span id="sys-backup-progress-title" class="text-indigo-900 dark:text-indigo-200 flex items-center space-x-2">
+                            <i class="fa-solid fa-spinner fa-spin text-indigo-600 dark:text-indigo-400"></i>
+                            <span>Đang xử lý...</span>
+                        </span>
+                        <span id="sys-backup-progress-pct" class="font-mono text-indigo-700 dark:text-indigo-300">0%</span>
+                    </div>
+                    <div class="w-full h-2.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                        <div id="sys-backup-progress-bar" class="h-full bg-gradient-to-r from-emerald-500 to-indigo-600 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <p id="sys-backup-progress-detail" class="text-[11px] font-semibold text-slate-600 dark:text-slate-300"></p>
+                </div>
+
+                <!-- TAB 1: BACKUP -->
+                <div id="sys-backup-panel-backup" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-200">Chọn các phân hệ cần sao lưu</h4>
+                        <div class="flex items-center space-x-2 text-xs">
+                            <button type="button" onclick="toggleAllBackupCheckboxes(true)" class="font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">Chọn tất cả</button>
+                            <span class="text-slate-400">•</span>
+                            <button type="button" onclick="toggleAllBackupCheckboxes(false)" class="font-bold text-slate-500 hover:underline cursor-pointer">Bỏ chọn</button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label class="flex items-start space-x-3 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/70 cursor-pointer hover:border-emerald-400 transition">
+                            <input type="checkbox" name="sys-backup-mod" value="users" checked class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500">
+                            <div class="text-xs">
+                                <div class="font-extrabold text-slate-900 dark:text-white">1. Nhân sự & Phân quyền</div>
+                                <div class="text-[11px] text-slate-500 dark:text-slate-300 mt-0.5">Toàn bộ tài khoản, SĐT, chức danh, bộ phận, mật khẩu (users)</div>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start space-x-3 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/70 cursor-pointer hover:border-emerald-400 transition">
+                            <input type="checkbox" name="sys-backup-mod" value="tasks" checked class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500">
+                            <div class="text-xs">
+                                <div class="font-extrabold text-slate-900 dark:text-white">2. Công việc & Tiến độ</div>
+                                <div class="text-[11px] text-slate-500 dark:text-slate-300 mt-0.5">Toàn bộ danh sách task, trạng thái, % hoàn thành, ghi chú (tasks)</div>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start space-x-3 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/70 cursor-pointer hover:border-emerald-400 transition">
+                            <input type="checkbox" name="sys-backup-mod" value="schedules" checked class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500">
+                            <div class="text-xs">
+                                <div class="font-extrabold text-slate-900 dark:text-white">3. Lịch Phân Ca & Danh Mục Ca</div>
+                                <div class="text-[11px] text-slate-500 dark:text-slate-300 mt-0.5">Lịch trực toàn bộ các ngày (schedules) & bảng mã ca chuẩn</div>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start space-x-3 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/70 cursor-pointer hover:border-emerald-400 transition">
+                            <input type="checkbox" name="sys-backup-mod" value="inspections" checked class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500">
+                            <div class="text-xs">
+                                <div class="font-extrabold text-slate-900 dark:text-white">4. Kiểm Định Thiết Bị</div>
+                                <div class="text-[11px] text-slate-500 dark:text-slate-300 mt-0.5">Hồ sơ thang máy, nồi hơi, PCCC, trạm điện, HVAC, đo lường</div>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start space-x-3 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/70 cursor-pointer hover:border-emerald-400 transition">
+                            <input type="checkbox" name="sys-backup-mod" value="roomops" checked class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500">
+                            <div class="text-xs">
+                                <div class="font-extrabold text-slate-900 dark:text-white">5. Dự Án Phòng & Lan Can</div>
+                                <div class="text-[11px] text-slate-500 dark:text-slate-300 mt-0.5">Dự án, sơ đồ layout tùy chỉnh, tiến độ 198 phòng & lan can (roomtracking-9c5ab)</div>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start space-x-3 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/70 cursor-pointer hover:border-emerald-400 transition">
+                            <input type="checkbox" name="sys-backup-mod" value="settings_logs" checked class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500">
+                            <div class="text-xs">
+                                <div class="font-extrabold text-slate-900 dark:text-white">6. Cài Đặt & Nhật Ký Hệ Thống</div>
+                                <div class="text-[11px] text-slate-500 dark:text-slate-300 mt-0.5">Cấu hình web tích hợp, giao diện & nhật ký hoạt động gần đây</div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div id="sys-backup-result-summary" class="hidden p-4 rounded-2xl border border-emerald-300 dark:border-emerald-700 bg-emerald-50/80 dark:bg-emerald-950/40 text-xs space-y-1.5"></div>
+
+                    <div class="pt-2 flex flex-col sm:flex-row items-center justify-end gap-2.5 border-t border-slate-200 dark:border-slate-700">
+                        <button type="button" onclick="closeSystemBackupModal()" class="w-full sm:w-auto px-5 py-2.5 rounded-2xl border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">Đóng</button>
+                        <button type="button" id="btn-run-full-backup" onclick="runFullSystemBackup()" class="w-full sm:w-auto px-6 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-extrabold shadow-md flex items-center justify-center space-x-2 transition cursor-pointer">
+                            <i class="fa-solid fa-download"></i>
+                            <span>Tải Bản Sao Lưu Toàn Hệ Thống (.JSON)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TAB 2: RESTORE -->
+                <div id="sys-backup-panel-restore" class="hidden space-y-4">
+                    <div class="p-4 rounded-2xl border-2 border-dashed border-indigo-300 dark:border-indigo-700 bg-indigo-50/50 dark:bg-indigo-950/30 text-center space-y-2.5">
+                        <div class="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 mx-auto flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-file-arrow-up"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">Chọn file sao lưu toàn hệ thống (.JSON)</p>
+                            <p class="text-[11px] font-medium text-slate-600 dark:text-slate-300 mt-0.5">Hỗ trợ file xuất từ trình Sao Lưu Toàn Hệ Thống này hoặc file backup lẻ của RoomOps / Kiểm định.</p>
+                        </div>
+                        <input type="file" id="sys-restore-file-input" accept=".json,application/json" onchange="handleSystemRestoreFileSelect(event)" class="hidden">
+                        <button type="button" onclick="document.getElementById('sys-restore-file-input').click()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-sm transition cursor-pointer">
+                            <i class="fa-solid fa-folder-open mr-1.5"></i>Chọn File Backup (.JSON)
+                        </button>
+                    </div>
+
+                    <!-- Preview Backup Contents -->
+                    <div id="sys-restore-preview-box" class="hidden space-y-4">
+                        <div class="p-3.5 rounded-2xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div>
+                                <div id="sys-restore-file-name" class="font-extrabold text-slate-900 dark:text-white">--</div>
+                                <div id="sys-restore-file-meta" class="text-[11px] font-semibold text-slate-500 dark:text-slate-300 mt-0.5">--</div>
+                            </div>
+                            <span class="px-2.5 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 text-[11px] font-extrabold">File hợp lệ</span>
+                        </div>
+
+                        <div class="space-y-2">
+                            <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-200">Các phân hệ tìm thấy trong file (Tích chọn để khôi phục):</h4>
+                            <div id="sys-restore-modules-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5"></div>
+                        </div>
+
+                        <div class="p-3.5 rounded-2xl border border-amber-300 dark:border-amber-700 bg-amber-50/70 dark:bg-amber-950/40 space-y-2">
+                            <label class="block text-xs font-extrabold text-amber-950 dark:text-amber-200">Chế độ khôi phục:</label>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                <label class="flex items-start space-x-2 p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/80 border border-amber-200 dark:border-amber-800 cursor-pointer">
+                                    <input type="radio" name="sys-restore-mode" value="merge" checked class="mt-0.5 text-indigo-600">
+                                    <div>
+                                        <div class="font-extrabold text-slate-900 dark:text-white">Gộp dữ liệu (Merge — Khuyên dùng)</div>
+                                        <div class="text-[11px] text-slate-500 dark:text-slate-300">Bổ sung & cập nhật bản ghi từ file backup, giữ nguyên bản ghi mới hơn.</div>
+                                    </div>
+                                </label>
+                                <label class="flex items-start space-x-2 p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/80 border border-rose-200 dark:border-rose-800 cursor-pointer">
+                                    <input type="radio" name="sys-restore-mode" value="replace" class="mt-0.5 text-rose-600">
+                                    <div>
+                                        <div class="font-extrabold text-rose-700 dark:text-rose-300">Ghi đè hoàn toàn (Replace)</div>
+                                        <div class="text-[11px] text-slate-500 dark:text-slate-300">Xóa các bản ghi không có trong file backup ở phân hệ đã chọn.</div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="pt-2 flex flex-col sm:flex-row items-center justify-end gap-2.5 border-t border-slate-200 dark:border-slate-700">
+                            <button type="button" onclick="resetSystemRestoreState()" class="w-full sm:w-auto px-5 py-2.5 rounded-2xl border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">Chọn file khác</button>
+                            <button type="button" id="btn-run-full-restore" onclick="executeFullSystemRestore()" class="w-full sm:w-auto px-6 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-extrabold shadow-md flex items-center justify-center space-x-2 transition cursor-pointer">
+                                <i class="fa-solid fa-rotate-left"></i>
+                                <span>Bắt Đầu Khôi Phục Lên Cloud</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== HỆ THỐNG SAO LƯU & KHÔI PHỤC TOÀN HỆ THỐNG ====================
+        const TM_ROOMOPS_BACKUP_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyAx8NA4jVmFXz95hnelGazLbLU0316Igp4",
+            authDomain: "roomtracking-9c5ab.firebaseapp.com",
+            projectId: "roomtracking-9c5ab",
+            storageBucket: "roomtracking-9c5ab.firebasestorage.app",
+            messagingSenderId: "308414778034",
+            appId: "1:308414778034:web:29bec54b0e8a3eacd297ab"
+        };
+
+        let _tmRoomOpsBackupDb = null;
+        let _tmPendingRestorePayload = null;
+        let _tmBackupBusy = false;
+
+        function getRoomOpsBackupDb() {
+            if (_tmRoomOpsBackupDb) return _tmRoomOpsBackupDb;
+            try {
+                let secondaryApp = firebase.apps.find(a => a.name === 'roomops-backup-app');
+                if (!secondaryApp) {
+                    secondaryApp = firebase.initializeApp(TM_ROOMOPS_BACKUP_FIREBASE_CONFIG, 'roomops-backup-app');
+                }
+                _tmRoomOpsBackupDb = secondaryApp.firestore();
+                try {
+                    _tmRoomOpsBackupDb.settings({ ignoreUndefinedProperties: true, experimentalAutoDetectLongPolling: true });
+                } catch (e) {}
+                return _tmRoomOpsBackupDb;
+            } catch (err) {
+                console.warn('Không khởi tạo được RoomOps secondary Firestore:', err);
+                return null;
+            }
+        }
+
+        function updateLastBackupLabels() {
+            const raw = localStorage.getItem('tm_last_full_backup_ts');
+            const label = raw ? `Lần sao lưu gần nhất: ${new Date(Number(raw)).toLocaleString('vi-VN')}` : 'Chưa có bản sao lưu gần đây trên thiết bị này.';
+            const el1 = document.getElementById('profile-last-backup-label');
+            const el2 = document.getElementById('sys-backup-last-time');
+            if (el1) el1.textContent = label;
+            if (el2) el2.textContent = raw ? `Sao lưu gần nhất: ${new Date(Number(raw)).toLocaleString('vi-VN')}` : '';
+        }
+
+        function openSystemBackupModal(defaultTab = 'backup') {
+            const isAdmin = currentUser && (currentUser.id === 'shp' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN');
+            if (!isAdmin) {
+                if (typeof showPushBannerToast === 'function') {
+                    showPushBannerToast('Chỉ Quản trị viên (Admin) mới có quyền Sao lưu & Khôi phục toàn hệ thống.', true);
+                }
+                return;
+            }
+            const modal = document.getElementById('modal-system-backup');
+            if (!modal) return;
+            updateLastBackupLabels();
+            switchSystemBackupTab(defaultTab);
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+        window.openSystemBackupModal = openSystemBackupModal;
+
+        function closeSystemBackupModal() {
+            if (_tmBackupBusy) return;
+            const modal = document.getElementById('modal-system-backup');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+        window.closeSystemBackupModal = closeSystemBackupModal;
+
+        function switchSystemBackupTab(tab) {
+            const pBackup = document.getElementById('sys-backup-panel-backup');
+            const pRestore = document.getElementById('sys-backup-panel-restore');
+            const bBackup = document.getElementById('sys-tab-btn-backup');
+            const bRestore = document.getElementById('sys-tab-btn-restore');
+            if (!pBackup || !pRestore) return;
+
+            const isBackup = tab === 'backup';
+            pBackup.classList.toggle('hidden', !isBackup);
+            pRestore.classList.toggle('hidden', isBackup);
+
+            if (bBackup) {
+                bBackup.className = isBackup
+                    ? 'px-4 py-2 rounded-xl text-xs font-extrabold bg-emerald-600 text-white shadow-sm transition cursor-pointer flex items-center space-x-1.5'
+                    : 'px-4 py-2 rounded-xl text-xs font-bold bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 transition cursor-pointer flex items-center space-x-1.5';
+            }
+            if (bRestore) {
+                bRestore.className = !isBackup
+                    ? 'px-4 py-2 rounded-xl text-xs font-extrabold bg-indigo-600 text-white shadow-sm transition cursor-pointer flex items-center space-x-1.5'
+                    : 'px-4 py-2 rounded-xl text-xs font-bold bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 transition cursor-pointer flex items-center space-x-1.5';
+            }
+        }
+        window.switchSystemBackupTab = switchSystemBackupTab;
+
+        function toggleAllBackupCheckboxes(checked) {
+            document.querySelectorAll('input[name="sys-backup-mod"]').forEach(cb => { cb.checked = checked; });
+        }
+        window.toggleAllBackupCheckboxes = toggleAllBackupCheckboxes;
+
+        function setSystemBackupProgress(show, title = '', pct = 0, detail = '') {
+            const box = document.getElementById('sys-backup-progress-box');
+            const titleEl = document.getElementById('sys-backup-progress-title');
+            const pctEl = document.getElementById('sys-backup-progress-pct');
+            const barEl = document.getElementById('sys-backup-progress-bar');
+            const detailEl = document.getElementById('sys-backup-progress-detail');
+            if (!box) return;
+            box.classList.toggle('hidden', !show);
+            if (titleEl) titleEl.innerHTML = pct >= 100
+                ? `<i class="fa-solid fa-circle-check text-emerald-600 dark:text-emerald-400"></i><span>${escapeHtml(title)}</span>`
+                : `<i class="fa-solid fa-spinner fa-spin text-indigo-600 dark:text-indigo-400"></i><span>${escapeHtml(title)}</span>`;
+            if (pctEl) pctEl.textContent = `${Math.round(pct)}%`;
+            if (barEl) barEl.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+            if (detailEl) detailEl.textContent = detail;
+        }
+
+        async function fetchFirestoreCollectionMap(firestoreDb, colName, maxDocs = 0) {
+            const map = {};
+            if (!firestoreDb) return map;
+            let ref = firestoreDb.collection(colName);
+            if (maxDocs > 0) {
+                ref = ref.limit(maxDocs);
+            }
+            const snap = await ref.get({ source: 'server' }).catch(() => ref.get());
+            snap.forEach(doc => {
+                map[doc.id] = doc.data() || {};
+            });
+            return map;
+        }
+
+        async function writeFirestoreCollectionMap(firestoreDb, colName, docsMap, mode = 'merge', onStep = null) {
+            if (!firestoreDb || !docsMap || typeof docsMap !== 'object') return 0;
+            const entries = Object.entries(docsMap);
+
+            if (mode === 'replace') {
+                const existingSnap = await firestoreDb.collection(colName).get({ source: 'server' }).catch(() => firestoreDb.collection(colName).get());
+                const toDeleteIds = [];
+                existingSnap.forEach(doc => {
+                    if (!Object.prototype.hasOwnProperty.call(docsMap, doc.id)) {
+                        toDeleteIds.push(doc.id);
+                    }
+                });
+                const DEL_CHUNK = 380;
+                for (let i = 0; i < toDeleteIds.length; i += DEL_CHUNK) {
+                    const batch = firestoreDb.batch();
+                    toDeleteIds.slice(i, i + DEL_CHUNK).forEach(id => {
+                        batch.delete(firestoreDb.collection(colName).doc(id));
+                    });
+                    await batch.commit();
+                }
+            }
+
+            const WRITE_CHUNK = 380;
+            let written = 0;
+            for (let i = 0; i < entries.length; i += WRITE_CHUNK) {
+                const slice = entries.slice(i, i + WRITE_CHUNK);
+                const batch = firestoreDb.batch();
+                slice.forEach(([docId, data]) => {
+                    if (docId && data && typeof data === 'object') {
+                        batch.set(firestoreDb.collection(colName).doc(String(docId)), data, { merge: mode !== 'replace' });
+                    }
+                });
+                await batch.commit();
+                written += slice.length;
+                if (typeof onStep === 'function') onStep(written, entries.length);
+            }
+            return written;
+        }
+
+        async function runFullSystemBackup() {
+            if (_tmBackupBusy) return;
+            const selectedMods = Array.from(document.querySelectorAll('input[name="sys-backup-mod"]:checked')).map(el => el.value);
+            if (selectedMods.length === 0) {
+                showPushBannerToast('Vui lòng chọn ít nhất 1 phân hệ để sao lưu.', true);
+                return;
+            }
+
+            _tmBackupBusy = true;
+            const btn = document.getElementById('btn-run-full-backup');
+            if (btn) btn.disabled = true;
+            const summaryBox = document.getElementById('sys-backup-result-summary');
+            if (summaryBox) summaryBox.classList.add('hidden');
+
+            try {
+                const now = new Date();
+                const backupData = {
+                    schemaVersion: '3.0',
+                    app: 'Taskmana_Full_System_Backup',
+                    exportedAt: now.toISOString(),
+                    exportedAtLocal: now.toLocaleString('vi-VN'),
+                    exportedBy: currentUser ? (currentUser.name || currentUser.id) : 'Admin',
+                    includedModules: selectedMods,
+                    taskmana: {},
+                    kiemdinh: {},
+                    roomops: {},
+                    counts: {}
+                };
+
+                let step = 0;
+                const totalSteps = selectedMods.length;
+                const advance = (label) => {
+                    step++;
+                    setSystemBackupProgress(true, 'Đang thu thập dữ liệu toàn hệ thống...', Math.round((step / (totalSteps + 1)) * 100), label);
+                };
+
+                setSystemBackupProgress(true, 'Đang kết nối máy chủ Cloud...', 5, 'Khởi tạo phiên sao lưu từ Firestore...');
+
+                if (selectedMods.includes('users')) {
+                    advance('Đang sao lưu danh sách Nhân sự & Phân quyền...');
+                    const usersMap = await fetchFirestoreCollectionMap(db, 'users');
+                    backupData.taskmana.users = usersMap;
+                    backupData.counts.users = Object.keys(usersMap).length;
+                }
+
+                if (selectedMods.includes('tasks')) {
+                    advance('Đang sao lưu toàn bộ Công việc & Tiến độ...');
+                    const tasksMap = await fetchFirestoreCollectionMap(db, 'tasks');
+                    backupData.taskmana.tasks = tasksMap;
+                    backupData.counts.tasks = Object.keys(tasksMap).length;
+                }
+
+                if (selectedMods.includes('schedules')) {
+                    advance('Đang sao lưu Lịch phân ca & Danh mục mã ca...');
+                    const schedMap = await fetchFirestoreCollectionMap(db, 'schedules');
+                    backupData.taskmana.schedules = schedMap;
+                    backupData.taskmana.shiftCatalog = Array.isArray(SHIFT_CODES_CATALOG) ? SHIFT_CODES_CATALOG : [];
+                    backupData.counts.schedules = Object.keys(schedMap).length;
+                    backupData.counts.shiftCatalog = backupData.taskmana.shiftCatalog.length;
+                }
+
+                if (selectedMods.includes('inspections')) {
+                    advance('Đang sao lưu hồ sơ Kiểm Định Thiết Bị...');
+                    const inspMap = await fetchFirestoreCollectionMap(db, 'equipment_inspections');
+                    backupData.kiemdinh.equipment_inspections = inspMap;
+                    backupData.counts.inspections = Object.keys(inspMap).length;
+                }
+
+                if (selectedMods.includes('roomops')) {
+                    advance('Đang sao lưu Dự Án Phòng & Lan Can (roomtracking-9c5ab)...');
+                    const roDb = getRoomOpsBackupDb();
+                    if (roDb) {
+                        const [roProjects, roTasks, roLogs, roStaff, roSettings] = await Promise.all([
+                            fetchFirestoreCollectionMap(roDb, 'projects').catch(() => ({})),
+                            fetchFirestoreCollectionMap(roDb, 'tasks').catch(() => ({})),
+                            fetchFirestoreCollectionMap(roDb, 'activity_logs', 300).catch(() => ({})),
+                            fetchFirestoreCollectionMap(roDb, 'staff_members').catch(() => ({})),
+                            fetchFirestoreCollectionMap(roDb, 'system_settings').catch(() => ({}))
+                        ]);
+                        backupData.roomops = {
+                            projects: roProjects,
+                            tasks: roTasks,
+                            activity_logs: roLogs,
+                            staff_members: roStaff,
+                            system_settings: roSettings
+                        };
+                        backupData.counts.roomops_projects = Object.keys(roProjects).length;
+                        backupData.counts.roomops_tasks = Object.keys(roTasks).length;
+                    }
+                }
+
+                if (selectedMods.includes('settings_logs')) {
+                    advance('Đang sao lưu Cài đặt & Nhật ký hoạt động...');
+                    const [appSettingsMap, logsMap] = await Promise.all([
+                        fetchFirestoreCollectionMap(db, 'app_settings').catch(() => ({})),
+                        fetchFirestoreCollectionMap(db, 'logs', 400).catch(() => ({}))
+                    ]);
+                    backupData.taskmana.app_settings = appSettingsMap;
+                    backupData.taskmana.logs = logsMap;
+                    backupData.counts.logs = Object.keys(logsMap).length;
+                }
+
+                setSystemBackupProgress(true, 'Hoàn tất đóng gói file sao lưu!', 100, 'Đang tải xuống file JSON về máy...');
+
+                const pad = n => String(n).padStart(2, '0');
+                const stamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+                const fileName = `Taskmana_FullBackup_${stamp}.json`;
+                const jsonStr = JSON.stringify(backupData, null, 2);
+                const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+
+                localStorage.setItem('tm_last_full_backup_ts', String(Date.now()));
+                updateLastBackupLabels();
+                addLog(`Sao lưu toàn hệ thống (${fileName})`).catch(() => {});
+
+                if (summaryBox) {
+                    const c = backupData.counts;
+                    const lines = [];
+                    if (c.users !== undefined) lines.push(`• Nhân sự: <b>${c.users}</b> tài khoản`);
+                    if (c.tasks !== undefined) lines.push(`• Công việc: <b>${c.tasks}</b> task`);
+                    if (c.schedules !== undefined) lines.push(`• Lịch phân ca: <b>${c.schedules}</b> ngày & <b>${c.shiftCatalog || 0}</b> mã ca`);
+                    if (c.inspections !== undefined) lines.push(`• Kiểm định thiết bị: <b>${c.inspections}</b> thiết bị`);
+                    if (c.roomops_projects !== undefined) lines.push(`• Dự án Phòng & Lan Can: <b>${c.roomops_projects}</b> dự án & <b>${c.roomops_tasks || 0}</b> trạng thái phòng/lan can`);
+                    if (c.logs !== undefined) lines.push(`• Nhật ký hệ thống: <b>${c.logs}</b> bản ghi`);
+                    summaryBox.innerHTML = `<div class="font-extrabold text-emerald-900 dark:text-emerald-200">Đã tải xuống thành công: <span class="font-mono">${escapeHtml(fileName)}</span> (${(jsonStr.length / 1024).toFixed(1)} KB)</div><div class="text-slate-700 dark:text-slate-200 space-y-0.5">${lines.join('<br>')}</div>`;
+                    summaryBox.classList.remove('hidden');
+                }
+                showPushBannerToast(`Đã xuất file sao lưu toàn hệ thống: ${fileName}`);
+            } catch (err) {
+                console.error('Lỗi sao lưu toàn hệ thống:', err);
+                setSystemBackupProgress(false);
+                showPushBannerToast('Lỗi khi sao lưu dữ liệu: ' + (err.message || err), true);
+            } finally {
+                _tmBackupBusy = false;
+                if (btn) btn.disabled = false;
+            }
+        }
+        window.runFullSystemBackup = runFullSystemBackup;
+
+        function resetSystemRestoreState() {
+            _tmPendingRestorePayload = null;
+            const inp = document.getElementById('sys-restore-file-input');
+            const box = document.getElementById('sys-restore-preview-box');
+            if (inp) inp.value = '';
+            if (box) box.classList.add('hidden');
+            setSystemBackupProgress(false);
+        }
+        window.resetSystemRestoreState = resetSystemRestoreState;
+
+        async function handleSystemRestoreFileSelect(e) {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+                const raw = JSON.parse(await file.text());
+                let normalized = null;
+
+                // 1. Định dạng Full System Backup v3.0
+                if (raw && raw.app === 'Taskmana_Full_System_Backup') {
+                    normalized = raw;
+                }
+                // 2. Định dạng backup lẻ từ RoomOps Pro (.json)
+                else if (raw && (Array.isArray(raw.projects) || (raw.projects && typeof raw.projects === 'object'))) {
+                    const projMap = {};
+                    if (Array.isArray(raw.projects)) {
+                        raw.projects.forEach(p => { if (p && p.id) projMap[p.id] = p; });
+                    } else {
+                        Object.assign(projMap, raw.projects);
+                    }
+                    const logsMap = {};
+                    if (Array.isArray(raw.activityLogs)) {
+                        raw.activityLogs.forEach(l => { if (l && l.id) logsMap[l.id] = l; });
+                    }
+                    normalized = {
+                        schemaVersion: 'roomops-legacy',
+                        exportedAtLocal: raw.exportedAt || '--',
+                        exportedBy: 'RoomOps Backup',
+                        taskmana: {},
+                        kiemdinh: {},
+                        roomops: {
+                            projects: projMap,
+                            tasks: raw.tasks || {},
+                            activity_logs: logsMap
+                        }
+                    };
+                }
+                // 3. Định dạng backup lẻ từ Kiểm định thiết bị (mảng thiết bị)
+                else if (Array.isArray(raw) && raw.some(x => x && x.equipmentCode && x.nextDueDate)) {
+                    const inspMap = {};
+                    raw.forEach((item, i) => {
+                        const id = item.id || `insp_imp_${Date.now()}_${i}`;
+                        inspMap[id] = { ...item, id };
+                    });
+                    normalized = {
+                        schemaVersion: 'kiemdinh-legacy',
+                        exportedAtLocal: '--',
+                        exportedBy: 'Kiểm Định Backup',
+                        taskmana: {},
+                        kiemdinh: { equipment_inspections: inspMap },
+                        roomops: {}
+                    };
+                }
+
+                if (!normalized) {
+                    throw new Error('File JSON không đúng cấu trúc sao lưu của Taskmana / RoomOps / Kiểm Định.');
+                }
+
+                _tmPendingRestorePayload = normalized;
+
+                const availableModules = [];
+                if (normalized.taskmana?.users && Object.keys(normalized.taskmana.users).length > 0) {
+                    availableModules.push({ key: 'users', title: 'Nhân sự & Phân quyền', count: `${Object.keys(normalized.taskmana.users).length} tài khoản` });
+                }
+                if (normalized.taskmana?.tasks && Object.keys(normalized.taskmana.tasks).length > 0) {
+                    availableModules.push({ key: 'tasks', title: 'Công việc & Tiến độ', count: `${Object.keys(normalized.taskmana.tasks).length} task` });
+                }
+                if ((normalized.taskmana?.schedules && Object.keys(normalized.taskmana.schedules).length > 0) || (Array.isArray(normalized.taskmana?.shiftCatalog) && normalized.taskmana.shiftCatalog.length > 0)) {
+                    const sDays = Object.keys(normalized.taskmana?.schedules || {}).length;
+                    const sCodes = (normalized.taskmana?.shiftCatalog || []).length;
+                    availableModules.push({ key: 'schedules', title: 'Lịch Phân Ca & Mã Ca', count: `${sDays} ngày • ${sCodes} mã ca` });
+                }
+                if (normalized.kiemdinh?.equipment_inspections && Object.keys(normalized.kiemdinh.equipment_inspections).length > 0) {
+                    availableModules.push({ key: 'inspections', title: 'Kiểm Định Thiết Bị', count: `${Object.keys(normalized.kiemdinh.equipment_inspections).length} thiết bị` });
+                }
+                if ((normalized.roomops?.projects && Object.keys(normalized.roomops.projects).length > 0) || (normalized.roomops?.tasks && Object.keys(normalized.roomops.tasks).length > 0)) {
+                    const rp = Object.keys(normalized.roomops?.projects || {}).length;
+                    const rt = Object.keys(normalized.roomops?.tasks || {}).length;
+                    availableModules.push({ key: 'roomops', title: 'Dự Án Phòng & Lan Can', count: `${rp} dự án • ${rt} hạng mục` });
+                }
+                if ((normalized.taskmana?.app_settings && Object.keys(normalized.taskmana.app_settings).length > 0) || (normalized.taskmana?.logs && Object.keys(normalized.taskmana.logs).length > 0)) {
+                    availableModules.push({ key: 'settings_logs', title: 'Cài Đặt & Nhật Ký', count: `${Object.keys(normalized.taskmana?.logs || {}).length} nhật ký` });
+                }
+
+                if (availableModules.length === 0) {
+                    throw new Error('File sao lưu không có dữ liệu nào để khôi phục.');
+                }
+
+                document.getElementById('sys-restore-file-name').textContent = file.name;
+                document.getElementById('sys-restore-file-meta').textContent = `Ngày xuất: ${normalized.exportedAtLocal || normalized.exportedAt || '--'} • Người xuất: ${normalized.exportedBy || '--'}`;
+                document.getElementById('sys-restore-modules-list').innerHTML = availableModules.map(m => `
+                    <label class="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 cursor-pointer text-xs">
+                        <div class="flex items-center space-x-2.5">
+                            <input type="checkbox" name="sys-restore-mod" value="${m.key}" checked class="rounded text-indigo-600 focus:ring-indigo-500">
+                            <span class="font-extrabold text-slate-900 dark:text-white">${m.title}</span>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-200 font-bold text-[11px]">${m.count}</span>
+                    </label>
+                `).join('');
+
+                document.getElementById('sys-restore-preview-box').classList.remove('hidden');
+            } catch (err) {
+                resetSystemRestoreState();
+                showPushBannerToast(err.message || 'Không đọc được file JSON.', true);
+            }
+        }
+        window.handleSystemRestoreFileSelect = handleSystemRestoreFileSelect;
+
+        async function executeFullSystemRestore() {
+            if (_tmBackupBusy || !_tmPendingRestorePayload) return;
+            const selectedMods = Array.from(document.querySelectorAll('input[name="sys-restore-mod"]:checked')).map(el => el.value);
+            if (selectedMods.length === 0) {
+                showPushBannerToast('Vui lòng chọn ít nhất 1 phân hệ để khôi phục.', true);
+                return;
+            }
+            const mode = document.querySelector('input[name="sys-restore-mode"]:checked')?.value || 'merge';
+            const modeText = mode === 'replace'
+                ? 'GHI ĐÈ HOÀN TOÀN (sẽ xóa các bản ghi hiện tại không có trong file sao lưu)'
+                : 'GỘP DỮ LIỆU (bổ sung & cập nhật theo file sao lưu)';
+
+            if (!confirm(`Xác nhận khôi phục ${selectedMods.length} phân hệ lên Firestore theo chế độ:\n${modeText}?`)) {
+                return;
+            }
+
+            _tmBackupBusy = true;
+            const btn = document.getElementById('btn-run-full-restore');
+            if (btn) btn.disabled = true;
+
+            try {
+                const payload = _tmPendingRestorePayload;
+                let step = 0;
+                const totalSteps = selectedMods.length;
+                const advance = (label) => {
+                    step++;
+                    setSystemBackupProgress(true, 'Đang khôi phục dữ liệu lên Cloud...', Math.round((step / (totalSteps + 1)) * 100), label);
+                };
+
+                setSystemBackupProgress(true, 'Đang chuẩn bị khôi phục...', 5, 'Kiểm tra kết nối Firestore...');
+
+                if (selectedMods.includes('users') && payload.taskmana?.users) {
+                    advance('Đang khôi phục danh sách Nhân sự...');
+                    await writeFirestoreCollectionMap(db, 'users', payload.taskmana.users, mode);
+                }
+
+                if (selectedMods.includes('tasks') && payload.taskmana?.tasks) {
+                    advance('Đang khôi phục toàn bộ Công việc & Tiến độ...');
+                    await writeFirestoreCollectionMap(db, 'tasks', payload.taskmana.tasks, mode);
+                }
+
+                if (selectedMods.includes('schedules')) {
+                    advance('Đang khôi phục Lịch phân ca & Danh mục mã ca...');
+                    if (payload.taskmana?.schedules) {
+                        await writeFirestoreCollectionMap(db, 'schedules', payload.taskmana.schedules, mode);
+                    }
+                    if (Array.isArray(payload.taskmana?.shiftCatalog) && payload.taskmana.shiftCatalog.length > 0) {
+                        SHIFT_CODES_CATALOG = payload.taskmana.shiftCatalog;
+                        saveShiftCatalogToLocalStorage();
+                        renderShiftCodesCatalog();
+                    }
+                }
+
+                if (selectedMods.includes('inspections') && payload.kiemdinh?.equipment_inspections) {
+                    advance('Đang khôi phục hồ sơ Kiểm Định Thiết Bị...');
+                    await writeFirestoreCollectionMap(db, 'equipment_inspections', payload.kiemdinh.equipment_inspections, mode);
+                    try {
+                        const arr = Object.entries(payload.kiemdinh.equipment_inspections).map(([id, d]) => ({ ...d, id }));
+                        localStorage.setItem('hotetech_inspections_module_v1', JSON.stringify(arr));
+                    } catch (e) {}
+                }
+
+                if (selectedMods.includes('roomops') && payload.roomops) {
+                    advance('Đang khôi phục Dự Án Phòng & Lan Can (roomtracking-9c5ab)...');
+                    const roDb = getRoomOpsBackupDb();
+                    if (!roDb) throw new Error('Không thể kết nối Firestore Dự án Phòng & Lan Can (roomtracking-9c5ab).');
+                    if (payload.roomops.projects) {
+                        await writeFirestoreCollectionMap(roDb, 'projects', payload.roomops.projects, mode);
+                    }
+                    if (payload.roomops.tasks) {
+                        await writeFirestoreCollectionMap(roDb, 'tasks', payload.roomops.tasks, mode);
+                    }
+                    if (payload.roomops.activity_logs) {
+                        await writeFirestoreCollectionMap(roDb, 'activity_logs', payload.roomops.activity_logs, 'merge');
+                    }
+                    if (payload.roomops.staff_members && Object.keys(payload.roomops.staff_members).length > 0) {
+                        await writeFirestoreCollectionMap(roDb, 'staff_members', payload.roomops.staff_members, mode);
+                    }
+                }
+
+                if (selectedMods.includes('settings_logs')) {
+                    advance('Đang khôi phục Cài đặt & Nhật ký...');
+                    if (payload.taskmana?.app_settings) {
+                        await writeFirestoreCollectionMap(db, 'app_settings', payload.taskmana.app_settings, 'merge');
+                    }
+                    if (payload.taskmana?.logs) {
+                        await writeFirestoreCollectionMap(db, 'logs', payload.taskmana.logs, 'merge');
+                    }
+                }
+
+                setSystemBackupProgress(true, 'Khôi phục hoàn tất! Đang làm mới giao diện...', 100, 'Đang đồng bộ lại toàn bộ các phân hệ...');
+
+                await syncAllCollectionsFromServer(false);
+                if (typeof syncTaskmanaDataToRoomOps === 'function') syncTaskmanaDataToRoomOps();
+                if (typeof syncTaskmanaDataToKiemDinh === 'function') syncTaskmanaDataToKiemDinh();
+                addLog(`Khôi phục toàn hệ thống (${selectedMods.join(', ')} — chế độ ${mode})`).catch(() => {});
+
+                showPushBannerToast('Đã khôi phục dữ liệu toàn hệ thống thành công lên Cloud!');
+                setTimeout(() => {
+                    _tmBackupBusy = false;
+                    if (btn) btn.disabled = false;
+                    resetSystemRestoreState();
+                    closeSystemBackupModal();
+                }, 1400);
+            } catch (err) {
+                console.error('Lỗi khôi phục toàn hệ thống:', err);
+                setSystemBackupProgress(false);
+                showPushBannerToast('Lỗi khi khôi phục dữ liệu: ' + (err.message || err), true);
+                _tmBackupBusy = false;
+                if (btn) btn.disabled = false;
+            }
+        }
+        window.executeFullSystemRestore = executeFullSystemRestore;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateLastBackupLabels();
+        });
+    </script>
 </body>
 </html>
