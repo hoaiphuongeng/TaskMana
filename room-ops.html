@@ -5987,7 +5987,110 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
 .pdf-page-heading { font-size: 16px; font-weight: 800; color: #111827; margin: 0 0 10px 2px; }
 .railing-layout-shell { width: 100% !important; min-width: 0 !important; overflow: visible !important; }
 .railing-layout-canvas { width: 100% !important; min-width: 0 !important; }
-</style></head><body>${pages.join('')}</body></html>`;
+</style></head><body>${pages.join('')}
+    <!-- QUICK ROOM / PROJECT SEARCH MODAL (TRIGGERED FROM TASKMANA) -->
+    <div id="tmRoomOpsSearchModal" class="fixed inset-0 z-[120] bg-slate-900/50 backdrop-blur-sm hidden items-start justify-center pt-16 px-4" onclick="if(event.target===this) closeRoomOpsQuickSearch()">
+        <div class="w-full max-w-lg rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            <div class="px-4 py-3.5 border-b border-slate-200 flex items-center gap-2.5 bg-slate-50">
+                <i class="fa-solid fa-magnifying-glass text-blue-600 text-sm"></i>
+                <input id="tmRoomOpsSearchInput" type="text" oninput="renderRoomOpsQuickSearch(this.value)" placeholder="Tìm nhanh số phòng (VD: 204, 315), khu vực hoặc tên dự án..." class="flex-1 bg-transparent text-sm font-semibold text-slate-900 focus:outline-none">
+                <button type="button" onclick="closeRoomOpsQuickSearch()" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center text-xs cursor-pointer">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="tmRoomOpsSearchResults" class="max-h-[60vh] overflow-y-auto p-3 space-y-1.5"></div>
+        </div>
+    </div>
+    <script>
+        function openRoomOpsQuickSearch() {
+            const modal = document.getElementById('tmRoomOpsSearchModal');
+            const inp = document.getElementById('tmRoomOpsSearchInput');
+            if (!modal || !inp) return;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            inp.value = '';
+            renderRoomOpsQuickSearch('');
+            setTimeout(() => inp.focus(), 60);
+        }
+        function closeRoomOpsQuickSearch() {
+            const modal = document.getElementById('tmRoomOpsSearchModal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+        function renderRoomOpsQuickSearch(keyword) {
+            const box = document.getElementById('tmRoomOpsSearchResults');
+            if (!box) return;
+            const q = String(keyword || '').trim().toLowerCase();
+            const activeProj = (typeof getProjectById === 'function' ? getProjectById(state.staffSelectedProjectId) : null) || (state.projects && state.projects[0]);
+            let html = '';
+
+            // 1. Matching projects
+            const matchedProjects = (state.projects || []).filter(p => !q || String(p.name || '').toLowerCase().includes(q) || String(p.desc || '').toLowerCase().includes(q));
+            if (matchedProjects.length > 0) {
+                html += `<div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 pt-1">Dự án (${matchedProjects.length})</div>`;
+                matchedProjects.slice(0, 6).forEach(p => {
+                    html += `<button type="button" onclick="selectRoomOpsSearchProject('${p.id}')" class="w-full text-left px-3 py-2 rounded-xl hover:bg-blue-50 flex items-center justify-between gap-2 transition cursor-pointer">
+                        <div class="min-w-0">
+                            <div class="text-xs font-bold text-slate-900 truncate">${p.name || p.id}</div>
+                            <div class="text-[11px] text-slate-500 truncate">${p.deadline ? 'Hạn: ' + p.deadline : 'Dự án phòng & lan can'}</div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-100 text-blue-700 shrink-0">Mở dự án</span>
+                    </button>`;
+                });
+            }
+
+            // 2. Matching rooms/units in active project
+            if (activeProj && activeProj.rooms) {
+                const unitIds = Object.keys(activeProj.rooms);
+                const matchedUnits = unitIds.filter(uid => {
+                    const meta = typeof getUnitMeta === 'function' ? getUnitMeta(uid) : null;
+                    const label = meta ? `${uid} ${meta.label || ''} ${meta.wing || ''} tầng ${meta.floor || ''}` : uid;
+                    const rData = activeProj.rooms[uid] || {};
+                    const extra = `${rData.staff || ''} ${rData.note || ''} ${rData.status || ''}`;
+                    return !q || `${label} ${extra}`.toLowerCase().includes(q);
+                });
+                if (matchedUnits.length > 0) {
+                    html += `<div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 pt-2">Phòng / Hạng mục trong "${activeProj.name}" (${matchedUnits.length})</div>`;
+                    matchedUnits.slice(0, 20).forEach(uid => {
+                        const meta = typeof getUnitMeta === 'function' ? getUnitMeta(uid) : null;
+                        const rData = activeProj.rooms[uid] || {};
+                        const st = rData.status || 'pending';
+                        const stLabel = st === 'done' ? 'Hoàn thành' : (st === 'in_progress' ? 'Đang làm' : (st === 'issue' ? 'Có sự cố' : 'Chưa làm'));
+                        const stCls = st === 'done' ? 'bg-emerald-100 text-emerald-800' : (st === 'in_progress' ? 'bg-amber-100 text-amber-800' : (st === 'issue' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'));
+                        html += `<button type="button" onclick="openRoomOpsSearchUnit('${uid}')" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-100 flex items-center justify-between gap-2 transition cursor-pointer">
+                            <div class="min-w-0">
+                                <div class="text-xs font-extrabold text-slate-900">${meta?.label || uid} ${meta?.wing ? '· ' + meta.wing : ''}</div>
+                                <div class="text-[11px] text-slate-500 truncate">${rData.staff ? 'Phụ trách: ' + rData.staff : (rData.note || 'Bấm để xem/cập nhật')}</div>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold ${stCls} shrink-0">${stLabel}</span>
+                        </button>`;
+                    });
+                }
+            }
+
+            if (!html) {
+                html = `<div class="py-8 text-center text-xs font-semibold text-slate-400">Không tìm thấy phòng hoặc dự án nào khớp "${keyword}".</div>`;
+            }
+            box.innerHTML = html;
+        }
+        function selectRoomOpsSearchProject(projId) {
+            closeRoomOpsQuickSearch();
+            state.staffSelectedProjectId = projId;
+            if (typeof switchRole === 'function') switchRole('staff');
+            const sel = document.getElementById('staffProjectSelect');
+            if (sel) sel.value = projId;
+            if (typeof renderStaffGrid === 'function') renderStaffGrid();
+        }
+        function openRoomOpsSearchUnit(unitId) {
+            closeRoomOpsQuickSearch();
+            if (typeof openRoomModal === 'function') openRoomModal(unitId);
+        }
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeRoomOpsQuickSearch();
+        });
+    </script>
+</body></html>`;
         }
 
         async function requestServerPDF(selectedIds, filename) {
@@ -6436,7 +6539,20 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
         if (isEmbeddedInTaskmana) {
             window.addEventListener('message', (event) => {
                 const msg = event.data;
-                if (!msg || msg.type !== 'TASKMANA_SYNC_AUTH') return;
+                if (!msg) return;
+                if (msg.type === 'TASKMANA_MODULE_ACTION') {
+                    if (msg.action === 'search') {
+                        openRoomOpsQuickSearch();
+                    } else if (msg.action === 'add') {
+                        if (state.adminAuthenticated || (state.authenticatedUser && state.authenticatedUser.role === 'admin')) {
+                            openCreateProjectModal();
+                        } else if (typeof showToast === 'function') {
+                            showToast('Chỉ Quản trị viên mới có quyền tạo dự án phòng mới!', 'error');
+                        }
+                    }
+                    return;
+                }
+                if (msg.type !== 'TASKMANA_SYNC_AUTH') return;
 
                 // 1. Cập nhật danh sách nhân viên dùng chung từ Taskmana
                 if (Array.isArray(msg.users) && msg.users.length > 0) {
