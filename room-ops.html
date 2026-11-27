@@ -1936,7 +1936,17 @@
         function renderAdminProjectsList() {
             const container = document.getElementById('adminProjectsList');
             if (state.projects.length === 0) {
-                container.innerHTML = `<div class="p-8 text-center text-sm text-gray-500 bg-white/70 rounded-2xl border border-dashed border-gray-300">Chưa có dự án nào. Hãy bấm <strong>"Tạo Dự Án Mới"</strong> hoặc <strong>"Nạp dữ liệu mẫu"</strong>.</div>`;
+                const errHint = lastFirestoreError
+                    ? `<div class="text-xs text-red-600 font-semibold bg-red-50 border border-red-200 rounded-xl px-3 py-2 max-w-md mx-auto">Chi tiết kết nối: ${escapeListHTML(lastFirestoreError)}</div>`
+                    : `<div class="text-xs text-gray-500">Đang kết nối máy chủ <strong>roomtracking-9c5ab</strong>. Nếu bạn đã có dữ liệu trên Cloud, hãy bấm nút đồng bộ lại bên dưới.</div>`;
+                container.innerHTML = `<div class="p-6 text-center text-sm text-gray-600 bg-white/80 rounded-2xl border border-dashed border-gray-300 space-y-3">
+                    <div class="font-bold text-gray-800">Chưa tải thấy dự án nào từ Firestore</div>
+                    ${errHint}
+                    <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
+                        <button type="button" onclick="syncRoomOpsFromServer(true)" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition cursor-pointer">Đồng bộ lại từ Cloud ngay</button>
+                        <button type="button" onclick="openAdminSettingsModal(); switchAdminSettingsTab('backup');" class="px-4 py-2 rounded-xl bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 text-xs font-bold transition cursor-pointer">Khôi phục từ file JSON</button>
+                    </div>
+                </div>`;
                 return;
             }
 
@@ -6268,6 +6278,9 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
         // 9. SEED SAMPLE DATA & FIRESTORE REALTIME SYNC
         // ---------------------------------------------------------------------
         async function seedInitialFirestoreData(showNotification = false) {
+            if (showNotification && !confirm('Bạn có chắc muốn nạp thêm 2 dự án mẫu (Khóa từ & Sơn lan can)? Dữ liệu dự án hiện có trên Firestore sẽ được giữ nguyên, chỉ bổ sung/cập nhật 2 dự án mẫu.')) {
+                return;
+            }
             const today = new Date();
             const nextWeek = new Date(today.getTime() + 7 * 86400000).toISOString().split('T')[0];
 
@@ -6294,8 +6307,9 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                 }
             ];
 
-            state.projects = sampleProjects;
-            state.tasks = {};
+            const existingMap = new Map((state.projects || []).map(p => [p.id, p]));
+            sampleProjects.forEach(p => existingMap.set(p.id, p));
+            state.projects = Array.from(existingMap.values());
             sampleProjects.forEach(p => {
                 p.targetRooms.forEach((uId, idx) => {
                     let st = 'Pending';
@@ -6356,9 +6370,112 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
         const isEmbeddedInTaskmana = (window.self !== window.top) || new URLSearchParams(window.location.search).get('embedded') === '1';
 
         const pendingLocalTaskWrites = new Map();
+        const RO_CACHE_KEYS = {
+            projects: 'roomops_cache_projects_v1',
+            tasks: 'roomops_cache_tasks_v1',
+            logs: 'roomops_cache_logs_v1'
+        };
         let firestoreUnsubscribers = [];
         let lastServerSyncTs = 0;
+        let lastFirestoreError = '';
         let resyncInFlight = false;
+        let hasCompletedInitialSync = false;
+
+        function saveRoomOpsLocalCache() {
+            try {
+                if (Array.isArray(state.projects) && state.projects.length > 0) {
+                    localStorage.setItem(RO_CACHE_KEYS.projects, JSON.stringify(state.projects));
+                }
+                if (state.tasks && Object.keys(state.tasks).length > 0) {
+                    localStorage.setItem(RO_CACHE_KEYS.tasks, JSON.stringify(state.tasks));
+                }
+                if (Array.isArray(state.activityLogs) && state.activityLogs.length > 0) {
+                    localStorage.setItem(RO_CACHE_KEYS.logs, JSON.stringify(state.activityLogs.slice(0, 25)));
+                }
+            } catch (e) {}
+        }
+
+        function hydrateRoomOpsFromLocalCache() {
+            try {
+                const rawP = localStorage.getItem(RO_CACHE_KEYS.projects);
+                const rawT = localStorage.getItem(RO_CACHE_KEYS.tasks);
+                const rawL = localStorage.getItem(RO_CACHE_KEYS.logs);
+                let loaded = false;
+                if (rawP) {
+                    const pList = JSON.parse(rawP);
+                    if (Array.isArray(pList) && pList.length > 0 && state.projects.length === 0) {
+                        state.projects = sortProjectsList(pList);
+                        if (!state.staffSelectedProjectId) state.staffSelectedProjectId = state.projects[0]?.id || '';
+                        loaded = true;
+                    }
+                }
+                if (rawT) {
+                    const tMap = JSON.parse(rawT);
+                    if (tMap && typeof tMap === 'object' && Object.keys(state.tasks).length === 0) {
+                        state.tasks = tMap;
+                        loaded = true;
+                    }
+                }
+                if (rawL) {
+                    const lList = JSON.parse(rawL);
+                    if (Array.isArray(lList) && lList.length > 0 && state.activityLogs.length === 0) {
+                        state.activityLogs = sortActivityLogsList(lList).slice(0, 25);
+                        loaded = true;
+                    }
+                }
+                return loaded;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // Giải mã giá trị Firestore REST API (fallback khi WebSocket/LongPolling bị chặn)
+        function decodeFirestoreRestValue(val) {
+            if (!val || typeof val !== 'object') return null;
+            if ('stringValue' in val) return val.stringValue;
+            if ('integerValue' in val) return Number(val.integerValue);
+            if ('doubleValue' in val) return Number(val.doubleValue);
+            if ('booleanValue' in val) return Boolean(val.booleanValue);
+            if ('nullValue' in val) return null;
+            if ('timestampValue' in val) return val.timestampValue;
+            if ('arrayValue' in val) {
+                return (val.arrayValue.values || []).map(decodeFirestoreRestValue);
+            }
+            if ('mapValue' in val) {
+                const obj = {};
+                const fields = val.mapValue.fields || {};
+                Object.keys(fields).forEach(k => { obj[k] = decodeFirestoreRestValue(fields[k]); });
+                return obj;
+            }
+            return null;
+        }
+
+        async function fetchCollectionViaRest(colName) {
+            const docs = [];
+            let pageToken = '';
+            let guard = 0;
+            while (guard < 10) {
+                guard++;
+                const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/${colName}?pageSize=300${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}&key=${encodeURIComponent(firebaseConfig.apiKey)}`;
+                const res = await fetch(url, { cache: 'no-store' });
+                if (!res.ok) {
+                    const errText = await res.text().catch(() => '');
+                    throw new Error(`REST ${colName} HTTP ${res.status}: ${errText.slice(0, 120)}`);
+                }
+                const json = await res.json();
+                const items = Array.isArray(json.documents) ? json.documents : [];
+                items.forEach(docItem => {
+                    const id = String(docItem.name || '').split('/').pop();
+                    const fields = docItem.fields || {};
+                    const data = {};
+                    Object.keys(fields).forEach(k => { data[k] = decodeFirestoreRestValue(fields[k]); });
+                    docs.push({ id, data });
+                });
+                if (!json.nextPageToken) break;
+                pageToken = json.nextPageToken;
+            }
+            return docs;
+        }
 
         function updateSyncIndicator(status, detail = '') {
             const dotDesk = document.getElementById('syncDotDesktop');
@@ -6420,41 +6537,58 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
             return serverTasksMap;
         }
 
-        function applyProjectsSnapshot(snap) {
-            const list = [];
-            snap.forEach(d => {
-                list.push({ ...d.data(), id: d.id });
-            });
+        function applyProjectsArray(list, isAuthoritativeServer = false) {
+            if (!isAuthoritativeServer && list.length === 0 && state.projects.length > 0) {
+                return;
+            }
             sortProjectsList(list);
             state.projects = list;
             if (!state.staffSelectedProjectId || !list.some(p => p.id === state.staffSelectedProjectId)) {
                 state.staffSelectedProjectId = list[0]?.id || '';
             }
+            saveRoomOpsLocalCache();
             updateAdminDashboard();
             if (state.currentRole === 'staff') renderStaffView();
         }
 
-        function applyTasksSnapshot(snap) {
+        function applyTasksMap(nextTasks, isAuthoritativeServer = false) {
+            if (!isAuthoritativeServer && Object.keys(nextTasks).length === 0 && Object.keys(state.tasks).length > 0) {
+                return;
+            }
+            state.tasks = mergePendingLocalTasks(nextTasks);
+            saveRoomOpsLocalCache();
+            updateAdminDashboard();
+            if (state.currentRole === 'staff') renderStaffView();
+        }
+
+        function applyProjectsSnapshot(snap, isAuthoritativeServer = false) {
+            const list = [];
+            snap.forEach(d => {
+                list.push({ ...d.data(), id: d.id });
+            });
+            applyProjectsArray(list, isAuthoritativeServer);
+        }
+
+        function applyTasksSnapshot(snap, isAuthoritativeServer = false) {
             const nextTasks = {};
             snap.forEach(d => {
                 const data = d.data();
                 const key = (data.projectId && data.roomId) ? `${data.projectId}_${data.roomId}` : d.id;
                 nextTasks[key] = data;
             });
-            state.tasks = mergePendingLocalTasks(nextTasks);
-            updateAdminDashboard();
-            if (state.currentRole === 'staff') renderStaffView();
+            applyTasksMap(nextTasks, isAuthoritativeServer);
         }
 
         function applyLogsSnapshot(snap) {
             const logs = [];
             snap.forEach(d => logs.push({ ...d.data(), id: d.id }));
             state.activityLogs = sortActivityLogsList(logs).slice(0, 25);
+            saveRoomOpsLocalCache();
             renderAdminActivityFeed();
         }
 
         async function syncRoomOpsFromServer(showNotify = false) {
-            if (!db || !navigator.onLine) {
+            if (!navigator.onLine) {
                 if (showNotify) showToast('Thiết bị đang ngoại tuyến, chưa thể đồng bộ.', 'error');
                 return;
             }
@@ -6465,23 +6599,61 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
             resyncInFlight = true;
             updateSyncIndicator('syncing');
             try {
-                await enableNetwork(db).catch(() => {});
-                const fetchCol = (colName) => getDocsFromServer(collection(db, colName)).catch(() => getDocs(collection(db, colName)));
-                const [projSnap, tasksSnap, logsSnap] = await Promise.all([
-                    fetchCol('projects'),
-                    fetchCol('tasks'),
-                    fetchCol('activity_logs')
-                ]);
-                if (projSnap) applyProjectsSnapshot(projSnap);
-                if (tasksSnap) applyTasksSnapshot(tasksSnap);
-                if (logsSnap) applyLogsSnapshot(logsSnap);
+                let loadedViaSdk = false;
+                if (db) {
+                    await enableNetwork(db).catch(() => {});
+                    try {
+                        const withTimeout = (promise, ms) => Promise.race([
+                            promise,
+                            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
+                        ]);
+                        const [projSnap, tasksSnap, logsSnap] = await withTimeout(Promise.all([
+                            getDocsFromServer(collection(db, 'projects')),
+                            getDocsFromServer(collection(db, 'tasks')),
+                            getDocsFromServer(collection(db, 'activity_logs'))
+                        ]), 8000);
+                        applyProjectsSnapshot(projSnap, true);
+                        applyTasksSnapshot(tasksSnap, true);
+                        applyLogsSnapshot(logsSnap);
+                        loadedViaSdk = true;
+                    } catch (sdkErr) {
+                        console.warn('SDK getDocsFromServer fallback to REST:', sdkErr.message || sdkErr);
+                    }
+                }
+
+                // Fallback bằng REST API trực tiếp nếu SDK bị chặn/chậm trong iframe hoặc Wi-Fi nội bộ
+                if (!loadedViaSdk) {
+                    const [projDocs, taskDocs, logDocs] = await Promise.all([
+                        fetchCollectionViaRest('projects'),
+                        fetchCollectionViaRest('tasks'),
+                        fetchCollectionViaRest('activity_logs')
+                    ]);
+                    const projList = projDocs.map(d => ({ ...d.data, id: d.id }));
+                    const taskMap = {};
+                    taskDocs.forEach(d => {
+                        const key = (d.data.projectId && d.data.roomId) ? `${d.data.projectId}_${d.data.roomId}` : d.id;
+                        taskMap[key] = d.data;
+                    });
+                    const logList = logDocs.map(d => ({ ...d.data, id: d.id }));
+                    applyProjectsArray(projList, true);
+                    applyTasksMap(taskMap, true);
+                    state.activityLogs = sortActivityLogsList(logList).slice(0, 25);
+                    renderAdminActivityFeed();
+                }
+
+                lastFirestoreError = '';
                 lastServerSyncTs = Date.now();
+                hasCompletedInitialSync = true;
                 updateSyncIndicator('synced');
-                if (showNotify) showToast('Đã đồng bộ dữ liệu Phòng & Lan can mới nhất từ Firestore!');
+                if (showNotify) {
+                    showToast(`Đã đồng bộ ${state.projects.length} dự án & ${Object.keys(state.tasks).length} hạng mục từ Firestore!`);
+                }
             } catch (err) {
-                console.warn('syncRoomOpsFromServer notice:', err);
-                updateSyncIndicator('error');
-                if (showNotify) showToast('Lỗi đồng bộ Firestore: ' + (err.message || err), 'error');
+                console.error('syncRoomOpsFromServer error:', err);
+                lastFirestoreError = err?.message || String(err);
+                updateSyncIndicator('error', 'Lỗi kết nối Cloud • Bấm thử lại');
+                updateAdminDashboard();
+                if (showNotify) showToast('Lỗi đồng bộ Firestore: ' + lastFirestoreError, 'error');
             } finally {
                 resyncInFlight = false;
             }
@@ -6489,7 +6661,8 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
 
         function initFirestoreRealtimeSync(forceReset = false) {
             if (!db) {
-                updateSyncIndicator('error', 'Chế độ cục bộ (Offline)');
+                updateSyncIndicator('error', 'Đang dùng REST fallback...');
+                syncRoomOpsFromServer(false);
                 return;
             }
             if (forceReset && firestoreUnsubscribers.length > 0) {
@@ -6518,28 +6691,37 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                 }
 
                 const unsubProjects = onSnapshot(collection(db, 'projects'), { includeMetadataChanges: true }, (snap) => {
-                    if (!snap.metadata.fromCache) {
+                    const isServer = !snap.metadata.fromCache;
+                    if (isServer) {
+                        lastFirestoreError = '';
                         lastServerSyncTs = Date.now();
+                        hasCompletedInitialSync = true;
                         updateSyncIndicator('synced');
                     }
-                    if (!snap.metadata.fromCache || snap.size > 0 || state.projects.length === 0) {
-                        applyProjectsSnapshot(snap);
+                    if (isServer || snap.size > 0) {
+                        applyProjectsSnapshot(snap, isServer);
                     }
                 }, (err) => {
                     console.error('projects sync error:', err);
+                    lastFirestoreError = err?.message || String(err);
                     updateSyncIndicator('error');
+                    syncRoomOpsFromServer(false);
                 });
 
                 const unsubTasks = onSnapshot(collection(db, 'tasks'), { includeMetadataChanges: true }, (snap) => {
-                    if (!snap.metadata.fromCache) {
+                    const isServer = !snap.metadata.fromCache;
+                    if (isServer) {
+                        lastFirestoreError = '';
                         lastServerSyncTs = Date.now();
+                        hasCompletedInitialSync = true;
                         updateSyncIndicator('synced');
                     }
-                    if (!snap.metadata.fromCache || snap.size > 0 || Object.keys(state.tasks).length === 0) {
-                        applyTasksSnapshot(snap);
+                    if (isServer || snap.size > 0) {
+                        applyTasksSnapshot(snap, isServer);
                     }
                 }, (err) => {
                     console.error('tasks sync error:', err);
+                    lastFirestoreError = err?.message || String(err);
                     updateSyncIndicator('error');
                 });
 
@@ -6548,17 +6730,31 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                 }, (err) => console.warn('activity_logs sync notice:', err));
 
                 firestoreUnsubscribers.push(unsubProjects, unsubTasks, unsubLogs);
+
+                // Kéo chủ động 1 lần ngay khi khởi chạy để đảm bảo có dữ liệu tức thì (kể cả khi onSnapshot bị trễ)
+                setTimeout(() => {
+                    if (!hasCompletedInitialSync || state.projects.length === 0) {
+                        syncRoomOpsFromServer(false);
+                    }
+                }, 1200);
             } catch (err) {
                 console.warn('Firestore realtime sync warning:', err);
+                lastFirestoreError = err?.message || String(err);
                 updateSyncIndicator('error');
+                syncRoomOpsFromServer(false);
             }
         }
 
         function handleRoomOpsResumeSync() {
-            if (!db || !navigator.onLine) return;
+            if (!navigator.onLine) return;
+            // Không cắt listener khi mới khởi động chưa xong lần đồng bộ đầu tiên
+            if (!hasCompletedInitialSync) {
+                syncRoomOpsFromServer(false);
+                return;
+            }
             const staleMs = Date.now() - lastServerSyncTs;
             if (staleMs > 25000) {
-                enableNetwork(db).catch(() => {}).finally(() => {
+                (db ? enableNetwork(db).catch(() => {}) : Promise.resolve()).finally(() => {
                     initFirestoreRealtimeSync(true);
                     syncRoomOpsFromServer(false);
                 });
@@ -6568,7 +6764,7 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
         }
 
         window.addEventListener('online', () => {
-            enableNetwork(db).catch(() => {}).finally(() => {
+            (db ? enableNetwork(db).catch(() => {}) : Promise.resolve()).finally(() => {
                 initFirestoreRealtimeSync(true);
                 syncRoomOpsFromServer(false);
             });
@@ -6781,6 +6977,7 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
 
         window.addEventListener('DOMContentLoaded', () => {
             syncStickyHeaderOffset();
+            hydrateRoomOpsFromLocalCache();
             populateStaffDropdowns();
             switchRole('staff');
             if (state.projects.some(p => p.targetType !== 'RAILING')) {
