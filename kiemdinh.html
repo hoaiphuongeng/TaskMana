@@ -393,6 +393,20 @@
 
         // ==================== TRẠNG THÁI & DANH MỤC ====================
         const STORAGE_KEY = 'hotetech_inspections_module_v1';
+        const DEFAULT_SITE_ID = 'furama';
+        let currentSiteId = new URLSearchParams(window.location.search).get('site') || DEFAULT_SITE_ID;
+        let currentSiteName = currentSiteId === DEFAULT_SITE_ID ? 'Furama' : currentSiteId;
+        let kdFirestoreUnsub = null;
+
+        function getKdStorageKey() {
+            return currentSiteId === DEFAULT_SITE_ID ? STORAGE_KEY : `${STORAGE_KEY}__${currentSiteId}`;
+        }
+        function kdCol() {
+            if (!db) return null;
+            return currentSiteId === DEFAULT_SITE_ID
+                ? db.collection('equipment_inspections')
+                : db.collection('sites').doc(currentSiteId).collection('equipment_inspections');
+        }
         const isEmbeddedInTaskmana = (window.self !== window.top) || new URLSearchParams(window.location.search).get('embedded') === '1';
 
         const CATEGORIES = {
@@ -493,12 +507,12 @@
 
         // ==================== LƯU TRỮ (LOCALSTORAGE + FIRESTORE) ====================
         function saveLocal() {
-            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(inspections)); } catch (e) {}
+            try { localStorage.setItem(getKdStorageKey(), JSON.stringify(inspections)); } catch (e) {}
         }
 
         function loadLocal() {
             try {
-                const raw = localStorage.getItem(STORAGE_KEY);
+                const raw = localStorage.getItem(getKdStorageKey());
                 if (raw) {
                     const parsed = JSON.parse(raw);
                     if (Array.isArray(parsed)) return parsed;
@@ -511,7 +525,7 @@
             saveLocal();
             if (!db) return;
             try {
-                await db.collection('equipment_inspections').doc(item.id).set(item, { merge: true });
+                await kdCol().doc(item.id).set(item, { merge: true });
             } catch (e) {
                 console.warn('Firestore save notice:', e.message || e);
             }
@@ -521,7 +535,7 @@
             saveLocal();
             if (!db) return;
             try {
-                await db.collection('equipment_inspections').doc(id).delete();
+                await kdCol().doc(id).delete();
             } catch (e) {
                 console.warn('Firestore delete notice:', e.message || e);
             }
@@ -533,7 +547,11 @@
                 if (pill) pill.textContent = 'Offline Local';
                 return;
             }
-            db.collection('equipment_inspections').onSnapshot(snap => {
+            if (typeof kdFirestoreUnsub === 'function') {
+                try { kdFirestoreUnsub(); } catch (e) {}
+                kdFirestoreUnsub = null;
+            }
+            kdFirestoreUnsub = kdCol().onSnapshot(snap => {
                 if (!snap.empty) {
                     const list = [];
                     snap.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
@@ -995,6 +1013,17 @@
                 const msg = event.data;
                 if (!msg) return;
                 if (msg.type === 'TASKMANA_SYNC_AUTH') {
+                    if (msg.siteId) {
+                        const nextSiteId = String(msg.siteId).trim() || DEFAULT_SITE_ID;
+                        const nextSiteName = msg.siteName || nextSiteId;
+                        const siteChanged = nextSiteId !== currentSiteId;
+                        currentSiteId = nextSiteId;
+                        currentSiteName = nextSiteName;
+                        if (siteChanged) {
+                            inspections = currentSiteId === DEFAULT_SITE_ID ? loadLocal() : [];
+                            initFirestoreSync();
+                        }
+                    }
                     if (Array.isArray(msg.users) && msg.users.length > 0) {
                         staffList = msg.users;
                     }
