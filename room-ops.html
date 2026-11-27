@@ -1178,6 +1178,29 @@
             measurementId: "G-FZ1X869VM7"
         };
 
+        const DEFAULT_SITE_ID = 'furama';
+        let currentSiteId = new URLSearchParams(window.location.search).get('site') || DEFAULT_SITE_ID;
+        let currentSiteName = currentSiteId === DEFAULT_SITE_ID ? 'Furama' : currentSiteId;
+
+        function roCol(colName) {
+            return currentSiteId === DEFAULT_SITE_ID
+                ? collection(db, colName)
+                : collection(db, 'sites', currentSiteId, colName);
+        }
+        function roDoc(colName, docId) {
+            return currentSiteId === DEFAULT_SITE_ID
+                ? doc(db, colName, String(docId))
+                : doc(db, 'sites', currentSiteId, colName, String(docId));
+        }
+        function roRestPath(colName) {
+            return currentSiteId === DEFAULT_SITE_ID
+                ? colName
+                : `sites/${currentSiteId}/${colName}`;
+        }
+        function roLsKey(baseKey) {
+            return currentSiteId === DEFAULT_SITE_ID ? baseKey : `${baseKey}__${currentSiteId}`;
+        }
+
         let db = null;
         try {
             const app = initializeApp(firebaseConfig);
@@ -2206,7 +2229,7 @@
                             localStorage.setItem(getRailingLayoutStorageKey(proj.id, 'Garden Wing', floorNum), JSON.stringify(saved));
                         } catch (e) {}
                         if (db) {
-                            setDoc(doc(db, 'projects', proj.id), proj).catch(() => {});
+                            setDoc(roDoc('projects', proj.id), proj).catch(() => {});
                         }
                     }
                     applySavedRailingRoomOffsets(canvas, proj);
@@ -2805,7 +2828,7 @@
                 localStorage.setItem(getRailingLayoutStorageKey(editor.projectId, editor.wing, editor.floor), JSON.stringify(payload));
             } catch (err) { console.warn('Không thể lưu layout lan can cục bộ:', err); }
             if (db) {
-                setDoc(doc(db, 'projects', editor.projectId), proj).catch(err => {
+                setDoc(roDoc('projects', editor.projectId), proj).catch(err => {
                     console.warn('Không thể đồng bộ layout lan can lên Firestore:', err);
                     showToast('Đã lưu trên thiết bị, nhưng chưa đồng bộ được Firestore.', 'error');
                 });
@@ -3043,7 +3066,7 @@
                                     };
                                     state.tasks[taskKey] = newTask;
                                     if (db) {
-                                        setDoc(doc(db, 'tasks', taskKey), newTask).catch(err => console.warn(err));
+                                        setDoc(roDoc('tasks', taskKey), newTask).catch(err => console.warn(err));
                                     }
                                 }
                             }
@@ -3438,7 +3461,7 @@
                     const taskKey = `${proj.id}_${targetSeg.sourceId}`;
                     delete state.tasks[taskKey];
                     if (db) {
-                        deleteDoc(doc(db, 'tasks', taskKey)).catch(err => console.warn(err));
+                        deleteDoc(roDoc('tasks', taskKey)).catch(err => console.warn(err));
                     }
                 }
             }
@@ -3682,7 +3705,7 @@
 
             if (db) {
                 try {
-                    await setDoc(doc(db, 'projects', proj.id), { roomLayouts: cleanedLayouts }, { merge: true });
+                    await setDoc(roDoc('projects', proj.id), { roomLayouts: cleanedLayouts }, { merge: true });
                 } catch (err) {
                     console.warn('Không đồng bộ được layout Garden Wing lên Firestore:', err);
                 }
@@ -3742,7 +3765,7 @@
 
             if (db) {
                 try {
-                    await setDoc(doc(db, 'projects', proj.id), { roomLayouts: rebuiltLayouts }, { merge: true });
+                    await setDoc(roDoc('projects', proj.id), { roomLayouts: rebuiltLayouts }, { merge: true });
                 } catch (err) {
                     console.warn('Không đồng bộ được layout cả 2 khu lên Firestore:', err);
                 }
@@ -3763,7 +3786,7 @@
             project.roomLayouts = layouts;
             try { localStorage.setItem(`roomops_room_layout_${project.id}`, JSON.stringify(layouts)); } catch (err) { console.warn('Không lưu được layout phòng trên thiết bị:', err); }
             document.getElementById('btnRoomLayoutReset')?.classList.toggle('hidden', !Object.keys(layouts).length);
-            if (db) setDoc(doc(db, 'projects', project.id), { roomLayouts: layouts }, { merge: true })
+            if (db) setDoc(roDoc('projects', project.id), { roomLayouts: layouts }, { merge: true })
                 .catch(err => { console.warn('Không đồng bộ được layout phòng lên Firestore:', err); showToast('Đã lưu thứ tự trên thiết bị, nhưng chưa đồng bộ được lên máy chủ.'); });
         }
 
@@ -4125,7 +4148,7 @@
             } catch (err) { console.warn(err); }
 
             if (db) {
-                setDoc(doc(db, 'projects', proj.id), proj).catch(err => console.warn(err));
+                setDoc(roDoc('projects', proj.id), proj).catch(err => console.warn(err));
             }
 
             if (canvas) {
@@ -4297,7 +4320,7 @@
             });
 
             if (db) {
-                setDoc(doc(db, 'projects', proj.id), proj).catch(err => console.warn(err));
+                setDoc(roDoc('projects', proj.id), proj).catch(err => console.warn(err));
             }
 
             // Refresh all active canvas instances so they load the newly applied standard immediately
@@ -4361,7 +4384,7 @@
             if (!confirm('Khôi phục thứ tự mặc định cho toàn bộ sơ đồ phòng của dự án này? Dữ liệu tiến độ và ghi chú không bị ảnh hưởng.')) return;
             project.roomLayouts = {};
             try { localStorage.removeItem(`roomops_room_layout_${project.id}`); } catch (err) { console.warn(err); }
-            if (db) setDoc(doc(db, 'projects', project.id), { roomLayouts: {} }, { merge: true })
+            if (db) setDoc(roDoc('projects', project.id), { roomLayouts: {} }, { merge: true })
                 .catch(err => { console.warn('Không thể đồng bộ layout mặc định:', err); showToast('Đã khôi phục trên thiết bị nhưng chưa đồng bộ được lên máy chủ.'); });
             state.roomLayoutArrangeMode = false;
             renderStaffView();
@@ -4974,12 +4997,12 @@
                 if (db) {
                     updateSyncIndicator('syncing');
                     try {
-                        await setDoc(doc(db, 'projects', projId), updatedProj, { merge: true });
+                        await setDoc(roDoc('projects', projId), updatedProj, { merge: true });
                         if (removedTaskKeys.length > 0) {
                             const CHUNK = 400;
                             for (let i = 0; i < removedTaskKeys.length; i += CHUNK) {
                                 const batch = writeBatch(db);
-                                removedTaskKeys.slice(i, i + CHUNK).forEach(k => batch.delete(doc(db, 'tasks', k)));
+                                removedTaskKeys.slice(i, i + CHUNK).forEach(k => batch.delete(roDoc('tasks', k)));
                                 await batch.commit();
                             }
                         }
@@ -5018,7 +5041,7 @@
                 if (db) {
                     updateSyncIndicator('syncing');
                     try {
-                        await setDoc(doc(db, 'projects', newProjId), newProj, { merge: true });
+                        await setDoc(roDoc('projects', newProjId), newProj, { merge: true });
                         updateSyncIndicator('synced');
                     } catch (err) {
                         console.error('Lỗi tạo dự án trên Firestore:', err);
@@ -5152,8 +5175,8 @@
                 updateSyncIndicator('syncing');
                 try {
                     await Promise.all([
-                        setDoc(doc(db, 'tasks', key), updatedTask, { merge: true }),
-                        setDoc(doc(db, 'activity_logs', newLog.id), newLog, { merge: true })
+                        setDoc(roDoc('tasks', key), updatedTask, { merge: true }),
+                        setDoc(roDoc('activity_logs', newLog.id), newLog, { merge: true })
                     ]);
                     pendingLocalTaskWrites.delete(key);
                     updateSyncIndicator('synced');
@@ -5372,7 +5395,7 @@
             renderSettingsStaffList();
             populateStaffDropdowns();
             if (db) {
-                try { await setDoc(doc(db, 'staff_members', member.id), member); } catch (err) { console.warn(err); }
+                try { await setDoc(roDoc('staff_members', member.id), member); } catch (err) { console.warn(err); }
             }
             showToast(`${existing ? 'Đã cập nhật' : 'Đã thêm'} tài khoản ${name}!`);
         }
@@ -5382,7 +5405,7 @@
             renderSettingsStaffList();
             populateStaffDropdowns();
             if (db) {
-                try { await deleteDoc(doc(db, 'staff_members', id)); } catch (err) { console.warn(err); }
+                try { await deleteDoc(roDoc('staff_members', id)); } catch (err) { console.warn(err); }
             }
         }
 
@@ -5392,7 +5415,7 @@
             const password = document.getElementById('newAdminPass').value.trim();
             state.adminAuth = { username, password };
             if (db) {
-                try { await setDoc(doc(db, 'system_settings', 'admin_auth'), state.adminAuth); } catch (err) { console.warn(err); }
+                try { await setDoc(roDoc('system_settings', 'admin_auth'), state.adminAuth); } catch (err) { console.warn(err); }
             }
             showToast('Đã lưu thông tin tài khoản Admin!');
         }
@@ -5489,13 +5512,13 @@
                 updateSyncIndicator('syncing');
                 try {
                     for (const p of (state.projects || [])) {
-                        if (p && p.id) await setDoc(doc(db, 'projects', p.id), p, { merge: true });
+                        if (p && p.id) await setDoc(roDoc('projects', p.id), p, { merge: true });
                     }
                     const taskEntries = Object.entries(state.tasks || {});
                     for (let i = 0; i < taskEntries.length; i += 400) {
                         const batch = writeBatch(db);
                         taskEntries.slice(i, i + 400).forEach(([k, v]) => {
-                            if (v) batch.set(doc(db, 'tasks', k), v, { merge: true });
+                            if (v) batch.set(roDoc('tasks', k), v, { merge: true });
                         });
                         await batch.commit();
                     }
@@ -6265,14 +6288,14 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
             // 3. Delete project document and all associated task documents in Firestore using chunked batches
             if (db) {
                 try {
-                    await deleteDoc(doc(db, 'projects', projId));
+                    await deleteDoc(roDoc('projects', projId));
 
                     const keysArr = Array.from(taskKeysToDelete);
                     const CHUNK_SIZE = 400;
                     for (let i = 0; i < keysArr.length; i += CHUNK_SIZE) {
                         const batch = writeBatch(db);
                         keysArr.slice(i, i + CHUNK_SIZE).forEach(k => {
-                            batch.delete(doc(db, 'tasks', k));
+                            batch.delete(roDoc('tasks', k));
                         });
                         await batch.commit();
                     }
@@ -6350,13 +6373,13 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                 updateSyncIndicator('syncing');
                 try {
                     for (const p of sampleProjects) {
-                        await setDoc(doc(db, 'projects', p.id), p, { merge: true });
+                        await setDoc(roDoc('projects', p.id), p, { merge: true });
                     }
                     const nonPendingEntries = Object.entries(state.tasks).filter(([, t]) => t && t.status !== 'Pending');
                     for (let i = 0; i < nonPendingEntries.length; i += 400) {
                         const batch = writeBatch(db);
                         nonPendingEntries.slice(i, i + 400).forEach(([k, v]) => {
-                            batch.set(doc(db, 'tasks', k), v, { merge: true });
+                            batch.set(roDoc('tasks', k), v, { merge: true });
                         });
                         await batch.commit();
                     }
@@ -6375,7 +6398,7 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
         async function loadAdminCredentials() {
             if (!db) return;
             try {
-                const snap = await getDoc(doc(db, 'system_settings', 'admin_auth'));
+                const snap = await getDoc(roDoc('system_settings', 'admin_auth'));
                 if (snap.exists()) {
                     const saved = snap.data();
                     if (saved.username && saved.password) state.adminAuth = { username: saved.username, password: saved.password };
@@ -6402,22 +6425,22 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
         function saveRoomOpsLocalCache() {
             try {
                 if (Array.isArray(state.projects) && state.projects.length > 0) {
-                    localStorage.setItem(RO_CACHE_KEYS.projects, JSON.stringify(state.projects));
+                    localStorage.setItem(roLsKey(RO_CACHE_KEYS.projects), JSON.stringify(state.projects));
                 }
                 if (state.tasks && Object.keys(state.tasks).length > 0) {
-                    localStorage.setItem(RO_CACHE_KEYS.tasks, JSON.stringify(state.tasks));
+                    localStorage.setItem(roLsKey(RO_CACHE_KEYS.tasks), JSON.stringify(state.tasks));
                 }
                 if (Array.isArray(state.activityLogs) && state.activityLogs.length > 0) {
-                    localStorage.setItem(RO_CACHE_KEYS.logs, JSON.stringify(state.activityLogs.slice(0, 25)));
+                    localStorage.setItem(roLsKey(RO_CACHE_KEYS.logs), JSON.stringify(state.activityLogs.slice(0, 25)));
                 }
             } catch (e) {}
         }
 
         function hydrateRoomOpsFromLocalCache() {
             try {
-                const rawP = localStorage.getItem(RO_CACHE_KEYS.projects);
-                const rawT = localStorage.getItem(RO_CACHE_KEYS.tasks);
-                const rawL = localStorage.getItem(RO_CACHE_KEYS.logs);
+                const rawP = localStorage.getItem(roLsKey(RO_CACHE_KEYS.projects));
+                const rawT = localStorage.getItem(roLsKey(RO_CACHE_KEYS.tasks));
+                const rawL = localStorage.getItem(roLsKey(RO_CACHE_KEYS.logs));
                 let loaded = false;
                 if (rawP) {
                     const pList = JSON.parse(rawP);
@@ -6474,7 +6497,7 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
             let guard = 0;
             while (guard < 10) {
                 guard++;
-                const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/${colName}?pageSize=300${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}&key=${encodeURIComponent(firebaseConfig.apiKey)}`;
+                const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/${roRestPath(colName)}?pageSize=300${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}&key=${encodeURIComponent(firebaseConfig.apiKey)}`;
                 const res = await fetch(url, { cache: 'no-store' });
                 if (!res.ok) {
                     const errText = await res.text().catch(() => '');
@@ -6626,9 +6649,9 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                             new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
                         ]);
                         const [projSnap, tasksSnap, logsSnap] = await withTimeout(Promise.all([
-                            getDocsFromServer(collection(db, 'projects')),
-                            getDocsFromServer(collection(db, 'tasks')),
-                            getDocsFromServer(collection(db, 'activity_logs'))
+                            getDocsFromServer(roCol('projects')),
+                            getDocsFromServer(roCol('tasks')),
+                            getDocsFromServer(roCol('activity_logs'))
                         ]), 8000);
                         applyProjectsSnapshot(projSnap, true);
                         applyTasksSnapshot(tasksSnap, true);
@@ -6692,7 +6715,7 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
             updateSyncIndicator('syncing');
             try {
                 if (!isEmbeddedInTaskmana) {
-                    const unsubStaff = onSnapshot(collection(db, 'staff_members'), (snap) => {
+                    const unsubStaff = onSnapshot(roCol('staff_members'), (snap) => {
                         const list = [];
                         snap.forEach(d => {
                             const fallback = DEFAULT_STAFF_MEMBERS.find(s => s.id === d.id) || {};
@@ -6708,7 +6731,7 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                     firestoreUnsubscribers.push(unsubStaff);
                 }
 
-                const unsubProjects = onSnapshot(collection(db, 'projects'), { includeMetadataChanges: true }, (snap) => {
+                const unsubProjects = onSnapshot(roCol('projects'), { includeMetadataChanges: true }, (snap) => {
                     const isServer = !snap.metadata.fromCache;
                     if (isServer) {
                         lastFirestoreError = '';
@@ -6726,7 +6749,7 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                     syncRoomOpsFromServer(false);
                 });
 
-                const unsubTasks = onSnapshot(collection(db, 'tasks'), { includeMetadataChanges: true }, (snap) => {
+                const unsubTasks = onSnapshot(roCol('tasks'), { includeMetadataChanges: true }, (snap) => {
                     const isServer = !snap.metadata.fromCache;
                     if (isServer) {
                         lastFirestoreError = '';
@@ -6743,7 +6766,7 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                     updateSyncIndicator('error');
                 });
 
-                const unsubLogs = onSnapshot(collection(db, 'activity_logs'), (snap) => {
+                const unsubLogs = onSnapshot(roCol('activity_logs'), (snap) => {
                     applyLogsSnapshot(snap);
                 }, (err) => console.warn('activity_logs sync notice:', err));
 
@@ -7030,6 +7053,29 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                     return;
                 }
                 if (msg.type !== 'TASKMANA_SYNC_AUTH') return;
+
+                // 0. Đồng bộ cơ sở (Multi-Site) từ Taskmana
+                if (msg.siteId) {
+                    const nextSiteId = String(msg.siteId).trim() || DEFAULT_SITE_ID;
+                    const nextSiteName = msg.siteName || nextSiteId;
+                    const siteChanged = nextSiteId !== currentSiteId;
+                    currentSiteId = nextSiteId;
+                    currentSiteName = nextSiteName;
+                    const headerSub = document.querySelector('header p');
+                    if (headerSub) {
+                        headerSub.textContent = currentSiteId === DEFAULT_SITE_ID
+                            ? 'Furama • 198 Phòng & Hệ Thống Lan Can • Ocean & Garden Wing'
+                            : `${currentSiteName} • Dữ liệu độc lập (Sơ đồ phòng & lan can riêng sẽ cập nhật sau)`;
+                    }
+                    if (siteChanged) {
+                        state.projects = [];
+                        state.tasks = {};
+                        state.activityLogs = [];
+                        state.staffSelectedProjectId = '';
+                        hasCompletedInitialSync = false;
+                        initFirestoreSync();
+                    }
+                }
 
                 // 1. Cập nhật danh sách nhân viên dùng chung từ Taskmana
                 if (Array.isArray(msg.users) && msg.users.length > 0) {
