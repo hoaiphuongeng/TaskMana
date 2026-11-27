@@ -1007,6 +1007,23 @@
                     renderInspections();
                 } else if (msg.type === 'TASKMANA_SYNC_THEME' && typeof msg.isDark === 'boolean') {
                     document.documentElement.classList.toggle('dark', msg.isDark);
+                } else if (msg.type === 'TASKMANA_MODULE_ACTION') {
+                    if (msg.action === 'search') {
+                        const inp = document.getElementById('search-input');
+                        if (inp) {
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                            inp.focus();
+                            inp.select();
+                            inp.classList.add('ring-4', 'ring-indigo-500/40');
+                            setTimeout(() => inp.classList.remove('ring-4', 'ring-indigo-500/40'), 1400);
+                        }
+                    } else if (msg.action === 'add') {
+                        if (isAdminUser()) {
+                            openInspectionModal('create');
+                        } else {
+                            showToast('Chỉ Quản trị viên mới có quyền thêm thiết bị kiểm định mới.', true);
+                        }
+                    }
                 }
             });
         }
