@@ -4306,24 +4306,29 @@ let firestoreUnsubscribers = [];
         }
         window.syncAllCollectionsFromServer = syncAllCollectionsFromServer;
 
+        let _tmListenersInitInFlight = false;
+        let _tmLastResumeTriggerTs = 0;
+
         window.addEventListener('online', () => {
             forceReconnectFirestore().then(() => {
-                initOptimizedListeners(true);
+                if (firestoreUnsubscribers.length === 0) initOptimizedListeners(false);
                 syncAllCollectionsFromServer(false);
             });
         });
 
         function handleAppResumeSync() {
             if (!navigator.onLine) return;
-            const staleMs = Date.now() - _tmLastTasksServerSyncTs;
-            if (staleMs > 25000) {
-                forceReconnectFirestore().then(() => {
-                    initOptimizedListeners(true);
-                    syncAllCollectionsFromServer(false);
-                });
-            } else {
+            const now = Date.now();
+            // Chống gọi trùng lặp khi visibilitychange và focus kích hoạt cùng lúc
+            if (now - _tmLastResumeTriggerTs < 2500) return;
+            _tmLastResumeTriggerTs = now;
+
+            forceReconnectFirestore().then(() => {
+                if (firestoreUnsubscribers.length === 0) {
+                    initOptimizedListeners(false);
+                }
                 syncAllCollectionsFromServer(false);
-            }
+            });
         }
 
         document.addEventListener('visibilitychange', () => {
@@ -4338,8 +4343,7 @@ let firestoreUnsubscribers = [];
 
         window.addEventListener('pageshow', (e) => {
             if (e.persisted) {
-                initOptimizedListeners(true);
-                syncAllCollectionsFromServer(false);
+                handleAppResumeSync();
             }
         });
 
@@ -4349,6 +4353,10 @@ let firestoreUnsubscribers = [];
                 return;
             }
 
+            if (_tmListenersInitInFlight) return;
+            if (!forceReset && firestoreUnsubscribers.length > 0) return;
+
+            _tmListenersInitInFlight = true;
             try {
                 await Promise.race([
                     _tmPersistenceReadyPromise,
@@ -4357,13 +4365,18 @@ let firestoreUnsubscribers = [];
             } catch (e) {}
 
             if (forceReset && firestoreUnsubscribers.length > 0) {
-                firestoreUnsubscribers.forEach(unsub => {
+                const prev = firestoreUnsubscribers;
+                firestoreUnsubscribers = [];
+                prev.forEach(unsub => {
                     try { if (typeof unsub === 'function') unsub(); } catch (e) {}
                 });
-                firestoreUnsubscribers = [];
+                await new Promise(resolve => setTimeout(resolve, 150));
             }
 
-            if (firestoreUnsubscribers.length > 0) return;
+            if (firestoreUnsubscribers.length > 0) {
+                _tmListenersInitInFlight = false;
+                return;
+            }
 
             forceReconnectFirestore();
 
@@ -4436,9 +4449,16 @@ let firestoreUnsubscribers = [];
                 }
                 hideLoading();
             }, err => {
-                console.error("Lỗi đồng bộ users Firestore:", err.code, err.message);
+                const msg = String(err && err.message || '');
+                if (msg.includes('Target ID already exists')) {
+                    console.warn("Firestore users watch target collision (tự đồng bộ lại):", msg);
+                    syncAllCollectionsFromServer(false);
+                    hideLoading();
+                    return;
+                }
+                console.error("Lỗi đồng bộ users Firestore:", err.code, msg);
                 if (typeof showPushBannerToast === 'function') {
-                    showPushBannerToast("Lỗi đồng bộ dữ liệu nhân sự: " + err.message, true);
+                    showPushBannerToast("Lỗi đồng bộ dữ liệu nhân sự: " + msg, true);
                 }
                 if (!Array.isArray(cloudUsers) || cloudUsers.length === 0) {
                     cloudUsers = [...defaultUsers];
@@ -4543,9 +4563,16 @@ let firestoreUnsubscribers = [];
                 renderTasks();
                 renderDashboard();
             }, err => {
-                console.error("Lỗi đồng bộ tasks Firestore:", err.code, err.message);
+                const msg = String(err && err.message || '');
+                if (msg.includes('Target ID already exists')) {
+                    console.warn("Firestore tasks watch target collision (tự đồng bộ lại):", msg);
+                    syncAllCollectionsFromServer(false);
+                    hideLoading();
+                    return;
+                }
+                console.error("Lỗi đồng bộ tasks Firestore:", err.code, msg);
                 if (typeof showPushBannerToast === 'function') {
-                    showPushBannerToast("Lỗi đồng bộ công việc: " + err.message, true);
+                    showPushBannerToast("Lỗi đồng bộ công việc: " + msg, true);
                 }
                 hideLoading();
             });
@@ -4604,6 +4631,7 @@ let firestoreUnsubscribers = [];
             });
 
             firestoreUnsubscribers.push(unsubUsers, unsubTasks, unsubSchedules, unsubWebTool, unsubWebsites);
+            _tmListenersInitInFlight = false;
         }
 
         function debounce(func, wait) {
