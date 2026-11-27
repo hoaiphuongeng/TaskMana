@@ -79,19 +79,35 @@
         }
         .modal-backdrop {
             opacity: 0;
+            visibility: hidden;
             pointer-events: none;
-            transition: opacity 0.25s ease;
+            transition: opacity 0.22s ease, visibility 0.22s ease;
+            height: 100vh;
+            height: 100dvh;
+            max-height: 100dvh;
         }
         .modal-backdrop.active {
             opacity: 1;
+            visibility: visible;
             pointer-events: auto;
         }
         .bottom-sheet {
-            transform: translateY(100%);
-            transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+            transform: translateY(20px) scale(0.97);
+            opacity: 0;
+            max-height: calc(100vh - 24px);
+            max-height: calc(100dvh - 24px);
+            transition: transform 0.24s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.22s ease;
         }
         .modal-backdrop.active .bottom-sheet {
-            transform: translateY(0);
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+        .room-modal-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
         }
         .center-modal {
             transform: scale(0.95) translateY(10px);
@@ -709,88 +725,85 @@
     </main>
 
     <!-- ==================== MODAL 1: ROOM / RAILING STATUS UPDATE ==================== -->
-    <div id="roomModalBackdrop" onclick="closeRoomModal(event)" class="modal-backdrop fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-end sm:items-center justify-center">
-        <div onclick="event.stopPropagation()" class="bottom-sheet w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-ios-lg overflow-hidden max-h-[90vh] flex flex-col">
-            <div class="w-full flex justify-center pt-3 pb-1 sm:hidden">
-                <div class="w-10 h-1.5 bg-gray-300 rounded-full"></div>
-            </div>
-            <div class="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
-                <div>
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <span id="modalRoomTitle" class="text-lg sm:text-xl font-extrabold text-gray-900">Phòng 101</span>
-                        <span id="modalRoomWingBadge" class="px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 text-xs font-semibold">Ocean Wing</span>
-                        <span id="modalRoomFloorBadge" class="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-xs font-semibold">Tầng 1</span>
+    <div id="roomModalBackdrop" onclick="closeRoomModal(event)" class="modal-backdrop fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-hidden">
+        <div onclick="event.stopPropagation()" class="bottom-sheet w-full max-w-md bg-white rounded-3xl shadow-ios-lg overflow-hidden flex flex-col">
+            <div class="shrink-0 px-4 sm:px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-2 bg-white">
+                <div class="min-w-0">
+                    <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                        <span id="modalRoomTitle" class="text-base sm:text-xl font-extrabold text-gray-900">Phòng 101</span>
+                        <span id="modalRoomWingBadge" class="px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 text-[11px] font-semibold">Ocean Wing</span>
+                        <span id="modalRoomFloorBadge" class="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[11px] font-semibold">Tầng 1</span>
                     </div>
-                    <p id="modalProjectSubtitle" class="text-xs text-gray-500 mt-0.5 line-clamp-1">Dự án</p>
+                    <p id="modalProjectSubtitle" class="text-[11px] sm:text-xs text-gray-500 mt-0.5 line-clamp-1">Dự án</p>
                 </div>
-                <button onclick="closeRoomModal()" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600">
+                <button type="button" onclick="closeRoomModal()" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 shrink-0 cursor-pointer">
                     <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
             </div>
 
-            <div class="p-5 overflow-y-auto space-y-4">
+            <div class="room-modal-body p-4 sm:p-5 space-y-3.5">
                 <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Chọn trạng thái thực hiện</label>
-                    <div class="grid grid-cols-2 gap-2.5">
-                        <button type="button" onclick="selectModalStatus('Done')" id="statusBtn_Done" class="status-choice-btn flex items-center gap-2.5 p-3.5 rounded-2xl border-2 border-gray-200 text-left transition">
+                    <label class="block text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Chọn trạng thái thực hiện</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" onclick="selectModalStatus('Done')" id="statusBtn_Done" class="status-choice-btn flex items-center gap-2 p-2.5 sm:p-3 rounded-2xl border-2 border-gray-200 text-left transition cursor-pointer">
                             <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                                <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                                <i data-lucide="check-circle-2" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                             </div>
-                            <div>
-                                <div class="font-bold text-sm text-gray-900">Hoàn thành</div>
-                                <div class="text-[11px] text-gray-500">Đã nghiệm thu</div>
+                            <div class="min-w-0">
+                                <div class="font-bold text-xs sm:text-sm text-gray-900 truncate">Hoàn thành</div>
+                                <div class="text-[10px] sm:text-[11px] text-gray-500 truncate">Đã nghiệm thu</div>
                             </div>
                         </button>
 
-                        <button type="button" onclick="selectModalStatus('In_Progress')" id="statusBtn_In_Progress" class="status-choice-btn flex items-center gap-2.5 p-3.5 rounded-2xl border-2 border-gray-200 text-left transition">
+                        <button type="button" onclick="selectModalStatus('In_Progress')" id="statusBtn_In_Progress" class="status-choice-btn flex items-center gap-2 p-2.5 sm:p-3 rounded-2xl border-2 border-gray-200 text-left transition cursor-pointer">
                             <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                                <i data-lucide="clock" class="w-5 h-5"></i>
+                                <i data-lucide="clock" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                             </div>
-                            <div>
-                                <div class="font-bold text-sm text-gray-900">Đang làm / Hoãn</div>
-                                <div class="text-[11px] text-gray-500">Đang xử lý</div>
+                            <div class="min-w-0">
+                                <div class="font-bold text-xs sm:text-sm text-gray-900 truncate">Đang làm / Hoãn</div>
+                                <div class="text-[10px] sm:text-[11px] text-gray-500 truncate">Đang xử lý</div>
                             </div>
                         </button>
 
-                        <button type="button" onclick="selectModalStatus('Issue')" id="statusBtn_Issue" class="status-choice-btn flex items-center gap-2.5 p-3.5 rounded-2xl border-2 border-gray-200 text-left transition">
+                        <button type="button" onclick="selectModalStatus('Issue')" id="statusBtn_Issue" class="status-choice-btn flex items-center gap-2 p-2.5 sm:p-3 rounded-2xl border-2 border-gray-200 text-left transition cursor-pointer">
                             <div class="w-8 h-8 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
-                                <i data-lucide="alert-octagon" class="w-5 h-5"></i>
+                                <i data-lucide="alert-octagon" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                             </div>
-                            <div>
-                                <div class="font-bold text-sm text-gray-900">Báo sự cố</div>
-                                <div class="text-[11px] text-gray-500">Hỏng / Cần vật tư</div>
+                            <div class="min-w-0">
+                                <div class="font-bold text-xs sm:text-sm text-gray-900 truncate">Báo sự cố</div>
+                                <div class="text-[10px] sm:text-[11px] text-gray-500 truncate">Hỏng / Cần vật tư</div>
                             </div>
                         </button>
 
-                        <button type="button" onclick="selectModalStatus('Pending')" id="statusBtn_Pending" class="status-choice-btn flex items-center gap-2.5 p-3.5 rounded-2xl border-2 border-gray-200 text-left transition">
+                        <button type="button" onclick="selectModalStatus('Pending')" id="statusBtn_Pending" class="status-choice-btn flex items-center gap-2 p-2.5 sm:p-3 rounded-2xl border-2 border-gray-200 text-left transition cursor-pointer">
                             <div class="w-8 h-8 rounded-xl bg-gray-100 text-gray-600 flex items-center justify-center shrink-0">
-                                <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                                <i data-lucide="rotate-ccw" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                             </div>
-                            <div>
-                                <div class="font-bold text-sm text-gray-900">Chưa làm</div>
-                                <div class="text-[11px] text-gray-500">Đặt lại ban đầu</div>
+                            <div class="min-w-0">
+                                <div class="font-bold text-xs sm:text-sm text-gray-900 truncate">Chưa làm</div>
+                                <div class="text-[10px] sm:text-[11px] text-gray-500 truncate">Đặt lại ban đầu</div>
                             </div>
                         </button>
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Ghi chú hiện trường</label>
+                    <label class="block text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Ghi chú hiện trường</label>
                     <div class="flex flex-wrap gap-1.5 mb-2">
-                        <button type="button" onclick="appendQuickNote('Đã sơn chống rỉ & hoàn thiện')" class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-700">+ Đã sơn hoàn thiện</button>
-                        <button type="button" onclick="appendQuickNote('Khách treo biển DND')" class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-700">+ Khách DND</button>
-                        <button type="button" onclick="appendQuickNote('Thiếu vật tư thay thế')" class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-700">+ Thiếu vật tư</button>
-                        <button type="button" onclick="appendQuickNote('Hoạt động tốt')" class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-700">+ Hoạt động tốt</button>
+                        <button type="button" onclick="appendQuickNote('Đã sơn chống rỉ & hoàn thiện')" class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-[11px] font-medium text-gray-700 cursor-pointer">+ Đã sơn hoàn thiện</button>
+                        <button type="button" onclick="appendQuickNote('Khách treo biển DND')" class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-[11px] font-medium text-gray-700 cursor-pointer">+ Khách DND</button>
+                        <button type="button" onclick="appendQuickNote('Thiếu vật tư thay thế')" class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-[11px] font-medium text-gray-700 cursor-pointer">+ Thiếu vật tư</button>
+                        <button type="button" onclick="appendQuickNote('Hoạt động tốt')" class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-[11px] font-medium text-gray-700 cursor-pointer">+ Hoạt động tốt</button>
                     </div>
-                    <textarea id="modalNoteInput" rows="2" placeholder="Nhập chi tiết tình trạng phòng hoặc đoạn lan can..." class="w-full rounded-xl border border-gray-200 p-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                    <textarea id="modalNoteInput" rows="2" placeholder="Nhập chi tiết tình trạng phòng hoặc đoạn lan can..." class="w-full rounded-xl border border-gray-200 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
                 </div>
 
-                <div id="modalHistoryBox" class="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 border border-gray-100"></div>
+                <div id="modalHistoryBox" class="bg-gray-50 rounded-xl p-2.5 text-[11px] text-gray-600 border border-gray-100"></div>
             </div>
 
-            <div class="p-4 border-t border-gray-100 bg-gray-50 flex gap-2.5">
-                <button type="button" onclick="closeRoomModal()" class="flex-1 py-3 rounded-xl bg-white border border-gray-200 text-gray-700 font-semibold text-sm">Hủy</button>
-                <button type="button" onclick="saveRoomUpdate()" class="flex-[2] py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-600/20 flex items-center justify-center gap-2">
+            <div class="shrink-0 px-4 py-3 border-t border-gray-100 bg-gray-50 flex gap-2.5">
+                <button type="button" onclick="closeRoomModal()" class="flex-1 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 font-semibold text-sm cursor-pointer">Hủy</button>
+                <button type="button" onclick="saveRoomUpdate()" class="flex-[2] py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer">
                     <i data-lucide="check" class="w-4 h-4"></i>
                     <span>Lưu Cập Nhật</span>
                 </button>
@@ -5052,13 +5065,18 @@
                 : `<span class="text-gray-400 italic">Chưa có lịch sử cập nhật.</span>`;
 
             selectModalStatus(task.status);
-            document.getElementById('roomModalBackdrop').classList.add('active');
+            const backdrop = document.getElementById('roomModalBackdrop');
+            const bodyScroll = backdrop?.querySelector('.room-modal-body');
+            if (bodyScroll) bodyScroll.scrollTop = 0;
+            backdrop?.classList.add('active');
+            document.body.style.overflow = 'hidden';
             lucide.createIcons();
         }
 
         function closeRoomModal(e) {
             if (e && e.target !== e.currentTarget) return;
-            document.getElementById('roomModalBackdrop').classList.remove('active');
+            document.getElementById('roomModalBackdrop')?.classList.remove('active');
+            document.body.style.overflow = '';
         }
 
         function selectModalStatus(status) {
@@ -5073,8 +5091,8 @@
                 const btn = document.getElementById(`statusBtn_${s}`);
                 if (!btn) return;
                 btn.className = s === status
-                    ? `status-choice-btn flex items-center gap-2.5 p-3.5 rounded-2xl border-2 text-left transition ${activeMap[s]}`
-                    : `status-choice-btn flex items-center gap-2.5 p-3.5 rounded-2xl border-2 border-gray-200 bg-white text-left transition opacity-75`;
+                    ? `status-choice-btn flex items-center gap-2 p-2.5 sm:p-3 rounded-2xl border-2 text-left transition cursor-pointer ${activeMap[s]}`
+                    : `status-choice-btn flex items-center gap-2 p-2.5 sm:p-3 rounded-2xl border-2 border-gray-200 bg-white text-left transition opacity-75 cursor-pointer`;
             });
         }
 
