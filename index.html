@@ -903,7 +903,7 @@
                     </div>
                     <div class="flex items-center space-x-2 sm:space-x-3">
                         <!-- Nút Kính lúp trong suốt tìm kiếm task nhanh (Admin Quick Search) -->
-                        <button type="button" onclick="openAdminTaskSearchModal()" id="btn-admin-task-search" class="admin-only hidden px-2.5 py-1.5 rounded-xl border border-white/50 dark:border-white/10 bg-white/20 hover:bg-white/40 dark:bg-slate-800/20 dark:hover:bg-slate-700/40 backdrop-blur-md text-slate-800 dark:text-slate-100 text-xs font-bold transition-all shadow-2xs flex items-center space-x-1.5 active:scale-95 cursor-pointer" title="Tìm task công việc nhanh (Admin) [Phím tắt: Ctrl + K]">
+                        <button type="button" onclick="handleContextualSearch()" id="btn-admin-task-search" class="admin-only hidden px-2.5 py-1.5 rounded-xl border border-white/50 dark:border-white/10 bg-white/20 hover:bg-white/40 dark:bg-slate-800/20 dark:hover:bg-slate-700/40 backdrop-blur-md text-slate-800 dark:text-slate-100 text-xs font-bold transition-all shadow-2xs flex items-center space-x-1.5 active:scale-95 cursor-pointer" title="Tìm task công việc nhanh (Admin) [Phím tắt: Ctrl + K]">
                             <i class="fa-solid fa-magnifying-glass text-indigo-600 dark:text-indigo-400 text-xs"></i>
                             <span class="hidden lg:inline text-[11px] font-bold">Tìm Task</span>
                             <kbd class="hidden xl:inline-block px-1.5 py-0.2 bg-black/10 dark:bg-white/10 rounded text-[9px] font-mono text-slate-500 dark:text-slate-400">⌘K</kbd>
@@ -1625,6 +1625,13 @@
                                 </div>
                             </div>
 
+                            <div class="flex items-center gap-2">
+                                <div class="relative flex-1 max-w-sm">
+                                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400"><i class="fa-solid fa-magnifying-glass text-xs"></i></span>
+                                    <input type="text" id="schedule-staff-search" oninput="renderSchedule()" placeholder="Tìm nhân sự theo tên, SĐT, bộ phận trong lịch ca..." class="w-full pl-9 pr-3 py-2 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                </div>
+                            </div>
+
                             <div id="schedule-content-view" class="overflow-x-auto"></div>
                         </div>
 
@@ -1651,10 +1658,16 @@
                     <div id="tab-content-users" class="tab-content space-y-4 sm:space-y-6 hidden">
                         <div class="ios-card p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
                             <h3 class="text-sm sm:text-base font-bold text-slate-900">Danh Sách Thành Viên Hệ Thống</h3>
-                            <button onclick="openUserModal()" class="w-full sm:w-auto px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs sm:text-sm font-bold rounded-2xl shadow-sm transition-all flex items-center justify-center space-x-2">
-                                <i class="fa-solid fa-user-plus"></i>
-                                <span>Thêm thành viên</span>
-                            </button>
+                            <div class="flex items-center gap-2 w-full sm:w-auto">
+                                <div class="relative flex-1 sm:w-64">
+                                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400"><i class="fa-solid fa-magnifying-glass text-xs"></i></span>
+                                    <input type="text" id="users-search-input" oninput="renderUsers()" placeholder="Tìm thành viên theo tên, SĐT..." class="w-full pl-9 pr-3 py-2 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                </div>
+                                <button onclick="openUserModal()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs sm:text-sm font-bold rounded-2xl shadow-sm transition-all flex items-center justify-center space-x-2 whitespace-nowrap">
+                                    <i class="fa-solid fa-user-plus"></i>
+                                    <span>Thêm thành viên</span>
+                                </button>
+                            </div>
                         </div>
                         <div class="ios-card overflow-hidden">
                             <div class="overflow-x-auto">
@@ -1703,12 +1716,12 @@
                     </div>
 
             <!-- NÚT KÍNH LÚP TRONG SUỐT TÌM KIẾM TASK NHANH (ADMIN) -->
-            <button type="button" id="fab-search-task" onclick="openAdminTaskSearchModal()" class="fixed bottom-6 right-23 sm:right-24 z-40 w-14 h-14 sm:w-15 sm:h-15 flex items-center justify-center bg-white/45 dark:bg-slate-800/45 hover:bg-white/75 dark:hover:bg-slate-700/75 backdrop-blur-xl border border-white/60 dark:border-white/15 text-indigo-600 dark:text-indigo-400 rounded-full shadow-xl shadow-indigo-600/20 hover:shadow-2xl hover:scale-110 active:scale-90 transition-all duration-300 admin-only hidden group cursor-pointer ring-4 ring-indigo-500/15 select-none" title="Kính lúp tìm kiếm task nhanh (Admin) [Phím tắt: Ctrl + K]" aria-label="Tìm kiếm task">
+            <button type="button" id="fab-search-task" onclick="handleContextualSearch()" class="fixed bottom-6 right-23 sm:right-24 z-40 w-14 h-14 sm:w-15 sm:h-15 flex items-center justify-center bg-white/45 dark:bg-slate-800/45 hover:bg-white/75 dark:hover:bg-slate-700/75 backdrop-blur-xl border border-white/60 dark:border-white/15 text-indigo-600 dark:text-indigo-400 rounded-full shadow-xl shadow-indigo-600/20 hover:shadow-2xl hover:scale-110 active:scale-90 transition-all duration-300 admin-only hidden group cursor-pointer ring-4 ring-indigo-500/15 select-none" title="Kính lúp tìm kiếm task nhanh (Admin) [Phím tắt: Ctrl + K]" aria-label="Tìm kiếm task">
                 <i class="fa-solid fa-magnifying-glass text-xl sm:text-2xl group-hover:scale-110 transition-transform duration-300 drop-shadow-sm"></i>
             </button>
 
             <!-- NÚT GIAO VIỆC NHANH GỌN (DẤU + CÓ TÔ MÀU XUNG QUANH Ở GÓC DƯỚI BÊN PHẢI CHO ADMIN) -->
-            <button type="button" id="fab-assign-task" onclick="openTaskModal()" class="fixed bottom-6 right-6 z-40 w-14 h-14 sm:w-15 sm:h-15 flex items-center justify-center bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white rounded-full shadow-xl shadow-indigo-600/40 hover:shadow-2xl hover:shadow-indigo-600/60 hover:scale-110 active:scale-90 transition-all duration-300 admin-only hidden group cursor-pointer border-2 border-white/40 ring-4 ring-indigo-500/20 backdrop-blur-md select-none" title="Giao việc mới (Admin)" aria-label="Giao việc mới">
+            <button type="button" id="fab-assign-task" onclick="handleContextualAdd()" class="fixed bottom-6 right-6 z-40 w-14 h-14 sm:w-15 sm:h-15 flex items-center justify-center bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white rounded-full shadow-xl shadow-indigo-600/40 hover:shadow-2xl hover:shadow-indigo-600/60 hover:scale-110 active:scale-90 transition-all duration-300 admin-only hidden group cursor-pointer border-2 border-white/40 ring-4 ring-indigo-500/20 backdrop-blur-md select-none" title="Giao việc mới (Admin)" aria-label="Giao việc mới">
                 <i class="fa-solid fa-plus text-xl sm:text-2xl text-white group-hover:rotate-90 transition-transform duration-300 drop-shadow-sm"></i>
             </button>
 
@@ -3174,7 +3187,7 @@ closeProgressConfirmModal(true);
                     if (modal && !modal.classList.contains('hidden')) {
                         closeAdminTaskSearchModal();
                     } else {
-                        openAdminTaskSearchModal();
+                        handleContextualSearch();
                     }
                 }
             } else if (e.key === 'Escape') {
@@ -4088,7 +4101,106 @@ let firestoreUnsubscribers = [];
         const _tmNotifiedTaskIds = new Set();
         const _tmNotifiedCompletedKeys = new Set();
         let _tmLastServerResyncTs = 0;
+        let _tmLastTasksServerSyncTs = 0;
         let _tmResyncInFlight = false;
+
+        function updateContextualActionButtons(tab) {
+            const configMap = {
+                dashboard: { searchLabel: 'Tìm Task', searchTitle: 'Tìm công việc nhanh (Ctrl+K)', addTitle: 'Giao việc mới' },
+                tasks:     { searchLabel: 'Tìm Task', searchTitle: 'Tìm công việc nhanh (Ctrl+K)', addTitle: 'Giao việc mới' },
+                schedule:  { searchLabel: 'Tìm Lịch Ca', searchTitle: 'Tìm nhân sự trong lịch phân ca', addTitle: 'Thêm mã ca mới' },
+                'room-ops':{ searchLabel: 'Tìm Phòng', searchTitle: 'Tìm nhanh số phòng / dự án', addTitle: 'Tạo dự án phòng mới' },
+                kiemdinh:  { searchLabel: 'Tìm Thiết Bị', searchTitle: 'Tìm thiết bị kiểm định', addTitle: 'Thêm thiết bị kiểm định' },
+                users:     { searchLabel: 'Tìm Nhân Sự', searchTitle: 'Tìm thành viên hệ thống', addTitle: 'Thêm thành viên mới' }
+            };
+            const cfg = configMap[tab] || configMap.tasks;
+
+            const headerSearchBtn = document.getElementById('btn-admin-task-search');
+            const headerSearchSpan = headerSearchBtn?.querySelector('span');
+            if (headerSearchBtn) headerSearchBtn.title = cfg.searchTitle;
+            if (headerSearchSpan) headerSearchSpan.innerText = cfg.searchLabel;
+
+            const fabSearch = document.getElementById('fab-search-task');
+            if (fabSearch) {
+                fabSearch.title = cfg.searchTitle;
+                fabSearch.setAttribute('aria-label', cfg.searchTitle);
+            }
+
+            const fabAdd = document.getElementById('fab-assign-task');
+            if (fabAdd) {
+                fabAdd.title = cfg.addTitle;
+                fabAdd.setAttribute('aria-label', cfg.addTitle);
+            }
+        }
+        window.updateContextualActionButtons = updateContextualActionButtons;
+
+        function handleContextualSearch() {
+            if (currentTab === 'room-ops') {
+                const iframe = document.getElementById('room-ops-iframe');
+                if (iframe && iframe.contentWindow) {
+                    iframe.contentWindow.postMessage({ type: 'TASKMANA_MODULE_ACTION', action: 'search' }, '*');
+                }
+                return;
+            }
+            if (currentTab === 'kiemdinh') {
+                const iframe = document.getElementById('kiemdinh-iframe');
+                if (iframe && iframe.contentWindow) {
+                    iframe.contentWindow.postMessage({ type: 'TASKMANA_MODULE_ACTION', action: 'search' }, '*');
+                }
+                return;
+            }
+            if (currentTab === 'schedule') {
+                const inp = document.getElementById('schedule-staff-search');
+                if (inp) {
+                    inp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    inp.focus();
+                    inp.select();
+                    inp.classList.add('ring-4', 'ring-indigo-500/40');
+                    setTimeout(() => inp.classList.remove('ring-4', 'ring-indigo-500/40'), 1400);
+                }
+                return;
+            }
+            if (currentTab === 'users') {
+                const inp = document.getElementById('users-search-input');
+                if (inp) {
+                    inp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    inp.focus();
+                    inp.select();
+                    inp.classList.add('ring-4', 'ring-indigo-500/40');
+                    setTimeout(() => inp.classList.remove('ring-4', 'ring-indigo-500/40'), 1400);
+                }
+                return;
+            }
+            openAdminTaskSearchModal();
+        }
+        window.handleContextualSearch = handleContextualSearch;
+
+        function handleContextualAdd() {
+            if (currentTab === 'room-ops') {
+                const iframe = document.getElementById('room-ops-iframe');
+                if (iframe && iframe.contentWindow) {
+                    iframe.contentWindow.postMessage({ type: 'TASKMANA_MODULE_ACTION', action: 'add' }, '*');
+                }
+                return;
+            }
+            if (currentTab === 'kiemdinh') {
+                const iframe = document.getElementById('kiemdinh-iframe');
+                if (iframe && iframe.contentWindow) {
+                    iframe.contentWindow.postMessage({ type: 'TASKMANA_MODULE_ACTION', action: 'add' }, '*');
+                }
+                return;
+            }
+            if (currentTab === 'schedule') {
+                openShiftCatalogModal();
+                return;
+            }
+            if (currentTab === 'users') {
+                openUserModal();
+                return;
+            }
+            openTaskModal();
+        }
+        window.handleContextualAdd = handleContextualAdd;
 
         function forceReconnectFirestore() {
             if (typeof db === 'undefined' || !db) return Promise.resolve();
@@ -4100,7 +4212,7 @@ let firestoreUnsubscribers = [];
         async function syncAllCollectionsFromServer(showToast = false) {
             if (typeof db === 'undefined' || !db || !navigator.onLine) return;
             const now = Date.now();
-            if (!showToast && (now - _tmLastServerResyncTs < 15000)) return;
+            if (!showToast && (now - _tmLastServerResyncTs < 3000)) return;
             if (_tmResyncInFlight) return;
 
             _tmResyncInFlight = true;
@@ -4146,6 +4258,7 @@ let firestoreUnsubscribers = [];
                         return tb - ta;
                     });
                     cloudTasks = freshTasks;
+                    _tmLastTasksServerSyncTs = Date.now();
                     renderTasks();
                     renderDashboard();
                 }
@@ -4176,10 +4289,27 @@ let firestoreUnsubscribers = [];
             });
         });
 
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') {
+        function handleAppResumeSync() {
+            if (!navigator.onLine) return;
+            const staleMs = Date.now() - _tmLastTasksServerSyncTs;
+            if (staleMs > 25000) {
+                forceReconnectFirestore().then(() => {
+                    initOptimizedListeners(true);
+                    syncAllCollectionsFromServer(false);
+                });
+            } else {
                 syncAllCollectionsFromServer(false);
             }
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                handleAppResumeSync();
+            }
+        });
+
+        window.addEventListener('focus', () => {
+            handleAppResumeSync();
         });
 
         window.addEventListener('pageshow', (e) => {
@@ -4380,6 +4510,9 @@ let firestoreUnsubscribers = [];
                     const tb = b.timestamp || (b.createdAt ? Date.parse(b.createdAt) : 0) || 0;
                     return tb - ta;
                 });
+                if (isFromServer) {
+                    _tmLastTasksServerSyncTs = Date.now();
+                }
                 if (!snapshot.metadata.fromCache || nextTasks.length > 0 || cloudTasks.length === 0) {
                     cloudTasks = nextTasks;
                 }
@@ -7196,9 +7329,20 @@ return;
                 updateDoc.completedAt = nowTs;
             }
 
-            await db.collection('tasks').doc(taskId).set(updateDoc, { merge: true });
-            addLog(`Cập nhật tiến độ công việc: ${task.title} (${progress}%)`).catch(() => {});
+            // Cập nhật tức thì trên giao diện (Optimistic UI) để không bị trễ mạng
+            const idxTask = cloudTasks.findIndex(t => t.id === taskId);
+            if (idxTask !== -1) {
+                cloudTasks[idxTask] = { ...cloudTasks[idxTask], ...updateDoc };
+            }
             closeStaffUpdateModal();
+            renderTasks();
+            renderDashboard();
+
+            db.collection('tasks').doc(taskId).set(updateDoc, { merge: true }).catch(err => {
+                console.error('Lỗi đồng bộ tiến độ lên Firebase:', err);
+                showPushBannerToast('Lỗi đồng bộ tiến độ lên Firebase: ' + (err.message || err), true);
+            });
+            addLog(`Cập nhật tiến độ công việc: ${task.title} (${progress}%)`).catch(() => {});
             if (isNowCompleted) {
                 playTaskCompletionCelebration(task.title);
             }
@@ -7541,15 +7685,26 @@ return;
                         timestamp: existingTask.timestamp || Date.now(),
                         updatedAt: Date.now()
                     };
-                    // Dùng set(..., { merge: true }) để không bị lỗi NOT_FOUND nếu document đã bị xóa trên Firebase
-                    await db.collection('tasks').doc(taskId).set(updatePayload, { merge: true });
-                    addLog(`Cập nhật công việc: ${title}`).catch(() => {});
+                    // Cập nhật tức thì vào cloudTasks trước khi đồng bộ nền lên Firestore
+                    const existingIdx = cloudTasks.findIndex(t => t.id === taskId);
+                    if (existingIdx !== -1) {
+                        cloudTasks[existingIdx] = { ...cloudTasks[existingIdx], ...updatePayload, id: taskId };
+                    } else {
+                        cloudTasks = [{ id: taskId, ...updatePayload }, ...cloudTasks];
+                    }
                     closeTaskModal();
                     renderTasks();
                     renderDashboard();
                     showPushBannerToast('Đã cập nhật công việc thành công!');
+
+                    db.collection('tasks').doc(taskId).set(updatePayload, { merge: true }).catch(err => {
+                        console.error('Lỗi cập nhật task lên Firebase:', err);
+                        showPushBannerToast('Lỗi đồng bộ cập nhật lên Firebase: ' + (err.message || err), true);
+                    });
+                    addLog(`Cập nhật công việc: ${title}`).catch(() => {});
                 } else {
                     const nowTs = Date.now();
+                    const newTaskRef = db.collection('tasks').doc();
                     const createdObj = {
                         title, description, areaCategory, priority, assigneeId, startDate, deadline,
                         status: 'Chưa Thực Hiện', progress: 0,
@@ -7557,18 +7712,21 @@ return;
                         createdAt: new Date().toISOString().split('T')[0],
                         timestamp: nowTs
                     };
-                    const createdTaskRef = await db.collection('tasks').add(createdObj);
-                    if (!cloudTasks.some(t => t.id === createdTaskRef.id)) {
-                        cloudTasks = [{ id: createdTaskRef.id, ...createdObj }, ...cloudTasks];
-                    }
+                    initialTaskIds.add(newTaskRef.id);
+                    cloudTasks = [{ id: newTaskRef.id, ...createdObj }, ...cloudTasks];
                     closeTaskModal();
                     renderTasks();
                     renderDashboard();
                     showPushBannerToast('Đã giao việc mới thành công!');
 
-                    // Gửi thông báo & ghi log bất đồng bộ, không làm lỗi luồng giao việc nếu collection push_notifications/logs bị xóa hoặc lỗi quyền
+                    newTaskRef.set(createdObj).catch(err => {
+                        console.error('Lỗi lưu công việc mới lên Firebase:', err);
+                        showPushBannerToast('Chưa đồng bộ được task mới lên Firebase: ' + (err.message || err), true);
+                    });
+
+                    // Gửi thông báo & ghi log bất đồng bộ, không làm lỗi luồng giao việc
                     Promise.resolve(notifyAssignedTaskPush({
-                        taskId: createdTaskRef.id,
+                        taskId: newTaskRef.id,
                         title,
                         description,
                         assigneeId,
@@ -7589,9 +7747,15 @@ return;
             if (!confirm('Xóa công việc này?')) return;
             if (expandedTaskId === id) expandedTaskId = null;
             if (expandedRiskTaskId === id) expandedRiskTaskId = null;
-            await db.collection('tasks').doc(id).delete();
-            await addLog(`Xóa công việc ID: ${id}`);
-}
+            cloudTasks = cloudTasks.filter(t => t.id !== id);
+            renderTasks();
+            renderDashboard();
+            db.collection('tasks').doc(id).delete().catch(err => {
+                console.error('Lỗi xóa công việc trên Firebase:', err);
+                showPushBannerToast('Lỗi xóa công việc trên Firebase: ' + (err.message || err), true);
+            });
+            addLog(`Xóa công việc ID: ${id}`).catch(() => {});
+        }
 
 
 
@@ -8028,7 +8192,12 @@ closeShiftConfirmModal(false);
             }
 
             // Sắp xếp danh sách user: Ưu tiên user đang xem lên hàng đầu tiên
-            let sortedUsers = (cloudUsers.length > 0 ? [...cloudUsers] : [...defaultUsers]).filter(u => u.status !== 'INACTIVE');
+            const scheduleSearchQ = (document.getElementById('schedule-staff-search')?.value || '').trim().toLowerCase();
+            let sortedUsers = (cloudUsers.length > 0 ? [...cloudUsers] : [...defaultUsers]).filter(u => {
+                if (u.status === 'INACTIVE') return false;
+                if (!scheduleSearchQ) return true;
+                return [u.name, u.nickname, u.phone, u.position, u.department].some(v => String(v || '').toLowerCase().includes(scheduleSearchQ));
+            });
             sortedUsers.sort((a, b) => {
                 if (currentUser) {
                     if (a.id === currentUser.id) return -1;
@@ -8434,9 +8603,13 @@ return;
             const tbody = document.getElementById('users-table-body');
             if (!tbody) return;
             cloudUsers.sort((a, b) => (a.order || 0) - (b.order || 0));
+            const uQuery = (document.getElementById('users-search-input')?.value || '').trim().toLowerCase();
+            const filteredUsersList = !uQuery ? cloudUsers : cloudUsers.filter(u =>
+                [u.name, u.nickname, u.phone, u.position, u.department, u.role].some(v => String(v || '').toLowerCase().includes(uQuery))
+            );
 
             let html = '';
-            cloudUsers.forEach((u, index) => {
+            filteredUsersList.forEach((u, index) => {
                 let uNameDisp = u.nickname ? `${u.name} (${u.nickname})` : u.name;
                 html += `
                     <tr class="hover:bg-slate-200/50 transition-colors">
@@ -8659,15 +8832,23 @@ return;
                 const scrollContainer = document.getElementById('main-scroll-container');
                 if (scrollContainer) scrollContainer.scrollTop = 0;
 
+                if (typeof updateContextualActionButtons === 'function') {
+                    updateContextualActionButtons(tab);
+                }
+
                 if (tab === 'dashboard') {
                     closeStaffClickedTaskList();
                     renderDashboard();
+                    if (Date.now() - _tmLastTasksServerSyncTs > 8000) syncAllCollectionsFromServer(false);
                     setTimeout(() => {
                         if (typeof updateDonutAvatarCenter === 'function') updateDonutAvatarCenter();
                     }, 80);
                 }
                 if (tab === 'profile-settings') loadProfileSettings();
-                if (tab === 'tasks') renderTasks();
+                if (tab === 'tasks') {
+                    renderTasks();
+                    if (Date.now() - _tmLastTasksServerSyncTs > 8000) syncAllCollectionsFromServer(false);
+                }
                 if (tab === 'schedule') {
                     const dp = document.getElementById('schedule-date-picker');
                     if (dp && !dp.value) dp.value = new Date().toISOString().split('T')[0];
