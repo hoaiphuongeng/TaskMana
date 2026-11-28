@@ -907,7 +907,7 @@
 
                     <!-- Quick Selection Toolbar -->
                     <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-200/70">
-                        <div id="pickerWingTabs" class="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-gray-200">
+                        <div id="pickerWingTabs" class="flex flex-wrap items-center gap-1.5 bg-white p-1 rounded-xl border border-gray-200">
                             <button type="button" onclick="setPickerWingFilter('ALL')" data-pwing="ALL" class="picker-wing-tab px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-900 text-white">Cả 2 Khu</button>
                             <button type="button" onclick="setPickerWingFilter('Ocean Wing')" data-pwing="Ocean Wing" class="picker-wing-tab px-2.5 py-1 rounded-lg text-xs font-semibold text-gray-600">Ocean Wing</button>
                             <button type="button" onclick="setPickerWingFilter('Garden Wing')" data-pwing="Garden Wing" class="picker-wing-tab px-2.5 py-1 rounded-lg text-xs font-semibold text-gray-600">Garden Wing</button>
@@ -1268,7 +1268,9 @@
         function getWingCode(wingName) {
             const idx = (activePropertyConfig?.wings || []).findIndex(w => w.name === wingName);
             if (idx !== -1 && activePropertyConfig.wings[idx].code) return activePropertyConfig.wings[idx].code;
-            return idx <= 0 ? 'OW' : 'GW';
+            if (idx === 0) return 'OW';
+            if (idx === 1) return 'GW';
+            return `W${Math.max(1, idx + 1)}`;
         }
         function isFirstWing(wingName) {
             const wings = getActiveWings();
@@ -1294,17 +1296,25 @@
             return Array.from(new Set(list)).sort((a, b) => a - b);
         }
 
+        function getDefaultWingLabel(idx) {
+            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            return idx < letters.length ? `Khu ${letters[idx]}` : `Khu ${idx + 1}`;
+        }
+
         function normalizePropertyConfig(rawCfg) {
             if (!rawCfg || !Array.isArray(rawCfg.wings) || rawCfg.wings.length === 0) {
                 return JSON.parse(JSON.stringify(FURAMA_DEFAULT_PROPERTY_CONFIG));
             }
-            const wings = rawCfg.wings.slice(0, 2).map((w, idx) => {
-                const name = String(w?.name || (idx === 0 ? 'Khu A' : 'Khu B')).trim() || (idx === 0 ? 'Khu A' : 'Khu B');
-                const code = String(w?.code || (idx === 0 ? 'W1' : 'W2')).trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4) || (idx === 0 ? 'W1' : 'W2');
+            const usedNames = new Set();
+            const wings = rawCfg.wings.slice(0, 20).map((w, idx) => {
+                let name = String(w?.name || getDefaultWingLabel(idx)).trim() || getDefaultWingLabel(idx);
+                if (usedNames.has(name)) name = `${name} ${idx + 1}`;
+                usedNames.add(name);
+                const code = String(w?.code || `W${idx + 1}`).trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4) || `W${idx + 1}`;
                 const floors = {};
                 Object.entries(w?.floors || {}).forEach(([fk, list]) => {
                     const fNum = parseInt(fk, 10);
-                    if (isNaN(fNum) || fNum < 1) return;
+                    if (isNaN(fNum) || fNum < 1 || fNum > 60) return;
                     const cleaned = Array.isArray(list)
                         ? Array.from(new Set(list.map(x => String(x || '').trim()).filter(Boolean)))
                         : [];
@@ -1313,9 +1323,6 @@
                 if (Object.keys(floors).length === 0) floors[1] = [];
                 return { name, code, floors };
             });
-            if (wings.length === 2 && wings[0].name === wings[1].name) {
-                wings[1].name = `${wings[1].name} 2`;
-            }
             const allFloors = new Set();
             wings.forEach(w => Object.keys(w.floors).forEach(k => allFloors.add(parseInt(k, 10))));
             const railingEnabled = rawCfg.railingEnabled !== false;
@@ -1515,44 +1522,84 @@
             const projRoomLbl = document.getElementById('projTypeRoomLabel');
             if (projRoomLbl) projRoomLbl.textContent = `Dự Án Phòng Khách (${totalRooms} Phòng)`;
 
-            // Wing summary cards
+            const WING_CARD_THEMES = [
+                { border: 'border-l-sky-500', iconBg: 'bg-sky-500/10 text-sky-600', text: 'text-sky-600', bar: 'bg-sky-500', dot: 'bg-sky-500', btn: 'bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200' },
+                { border: 'border-l-emerald-500', iconBg: 'bg-emerald-500/10 text-emerald-600', text: 'text-emerald-600', bar: 'bg-emerald-500', dot: 'bg-emerald-500', btn: 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200' },
+                { border: 'border-l-violet-500', iconBg: 'bg-violet-500/10 text-violet-600', text: 'text-violet-600', bar: 'bg-violet-500', dot: 'bg-violet-500', btn: 'bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200' },
+                { border: 'border-l-amber-500', iconBg: 'bg-amber-500/10 text-amber-600', text: 'text-amber-600', bar: 'bg-amber-500', dot: 'bg-amber-500', btn: 'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200' },
+                { border: 'border-l-rose-500', iconBg: 'bg-rose-500/10 text-rose-600', text: 'text-rose-600', bar: 'bg-rose-500', dot: 'bg-rose-500', btn: 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200' },
+                { border: 'border-l-cyan-500', iconBg: 'bg-cyan-500/10 text-cyan-600', text: 'text-cyan-600', bar: 'bg-cyan-500', dot: 'bg-cyan-500', btn: 'bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border border-cyan-200' },
+                { border: 'border-l-indigo-500', iconBg: 'bg-indigo-500/10 text-indigo-600', text: 'text-indigo-600', bar: 'bg-indigo-500', dot: 'bg-indigo-500', btn: 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200' },
+                { border: 'border-l-teal-500', iconBg: 'bg-teal-500/10 text-teal-600', text: 'text-teal-600', bar: 'bg-teal-500', dot: 'bg-teal-500', btn: 'bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200' }
+            ];
+
+            // Wing summary cards (supports 1..20 wings)
             const wingGrid = document.getElementById('wingSummaryGrid');
-            const card1 = document.getElementById('wingCard1');
-            if (wingGrid) wingGrid.className = wings.length === 1 ? 'grid grid-cols-1 gap-3 sm:gap-4' : 'grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4';
-            wings.forEach((wName, idx) => {
-                const titleEl = document.getElementById(`wingCard${idx}Title`);
-                const subEl = document.getElementById(`wingCard${idx}Sub`);
-                if (titleEl) titleEl.textContent = `Khu ${wName}`;
-                if (subEl) {
+            if (wingGrid) {
+                wingGrid.className = wings.length === 1
+                    ? 'grid grid-cols-1 gap-3 sm:gap-4'
+                    : (wings.length >= 3 ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4' : 'grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4');
+                wingGrid.innerHTML = wings.map((wName, idx) => {
+                    const th = WING_CARD_THEMES[idx % WING_CARD_THEMES.length];
                     const wRooms = ALL_ROOMS.filter(r => r.wing === wName).length;
-                    const floorBreakdown = floors.map(f => `T${f}: ${(REAL_HOTEL_DATA[wName]?.[f] || []).length}P`).join(' • ');
+                    const floorDesc = floors.length <= 6
+                        ? floors.map(f => `T${f}: ${(REAL_HOTEL_DATA[wName]?.[f] || []).length}P`).join(' • ')
+                        : `${floors.length} tầng (T${floors[0]}–T${floors[floors.length - 1]})`;
                     const railTxt = rFloors.length ? ` & Lan can T${rFloors[0]}–T${rFloors[rFloors.length - 1]}` : '';
-                    subEl.textContent = `${wRooms} phòng (${floorBreakdown})${railTxt}`;
-                }
-            });
-            if (card1) card1.classList.toggle('hidden', wings.length < 2);
+                    return `
+                        <div class="glass rounded-2xl p-4 sm:p-5 shadow-ios border-l-4 ${th.border}">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center gap-2.5 min-w-0">
+                                    <div class="w-8 h-8 rounded-xl ${th.iconBg} flex items-center justify-center shrink-0">
+                                        <i data-lucide="building-2" class="w-4 h-4"></i>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <h3 class="font-bold text-sm text-gray-900 truncate">Khu ${wName}</h3>
+                                        <p class="text-[11px] text-gray-500 truncate">${wRooms} phòng (${floorDesc})${railTxt}</p>
+                                    </div>
+                                </div>
+                                <span id="wingPct_${idx}" class="text-lg font-extrabold ${th.text} shrink-0">0%</span>
+                            </div>
+                            <div class="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden mb-2">
+                                <div id="wingBar_${idx}" class="h-full ${th.bar} rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                            <div class="flex items-center justify-between text-xs text-gray-600">
+                                <span>Hoàn thành: <strong id="wingRatio_${idx}" class="text-gray-900">0/0</strong></span>
+                                <span id="wingIssue_${idx}" class="text-red-600 font-semibold">0 sự cố</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
 
             const chartTitle = document.getElementById('floorBarChartTitle');
-            if (chartTitle) chartTitle.textContent = `So Sánh Tiến Độ ${wingsLabel} Theo Tầng`;
+            if (chartTitle) chartTitle.textContent = wings.length <= 3 ? `So Sánh Tiến Độ ${wingsLabel} Theo Tầng` : `So Sánh Tiến Độ ${wings.length} Khu Theo Tầng`;
             const chartSub = document.getElementById('floorBarChartSubtitle');
             if (chartSub && floors.length) chartSub.textContent = `Tỷ lệ hoàn thành công việc từ Tầng ${floors[0]} đến Tầng ${floors[floors.length - 1]}`;
 
-            // Staff Wing Filter Pills
+            // Staff Wing Scope select in Admin Settings
+            const staffScopeSel = document.getElementById('staffWingScopeInput');
+            if (staffScopeSel) {
+                const prevScope = staffScopeSel.value || 'ALL';
+                staffScopeSel.innerHTML = `<option value="ALL">Toàn bộ ${wings.length} khu</option>` +
+                    wings.map(w => `<option value="${w.replace(/"/g, '&quot;')}">Chỉ ${w}</option>`).join('');
+                staffScopeSel.value = (prevScope === 'ALL' || wings.includes(prevScope)) ? prevScope : 'ALL';
+            }
+
+            // Staff Wing Filter Pills (flexible wrap for many wings)
             const staffWingGroup = document.getElementById('staffWingFilterGroup');
             if (staffWingGroup) {
                 if (typeof state !== 'undefined' && state.staffWingFilter !== 'ALL' && !wings.includes(state.staffWingFilter)) {
                     state.staffWingFilter = 'ALL';
                 }
                 const curW = typeof state !== 'undefined' ? state.staffWingFilter : 'ALL';
-                staffWingGroup.className = wings.length === 1
-                    ? 'grid grid-cols-2 gap-1.5 bg-gray-100/90 p-1 rounded-xl flex-1'
-                    : 'grid grid-cols-3 gap-1.5 bg-gray-100/90 p-1 rounded-xl flex-1';
+                staffWingGroup.className = 'flex flex-wrap items-center gap-1.5 bg-gray-100/90 p-1 rounded-xl flex-1';
                 staffWingGroup.innerHTML =
-                    `<button onclick="setStaffWingFilter('ALL')" data-wing="ALL" class="wing-pill py-1.5 px-2 rounded-lg text-xs ${curW === 'ALL' ? 'font-bold bg-white text-gray-900 shadow-2xs' : 'font-semibold text-gray-600 hover:text-gray-900'} transition">Tất cả ${wings.length} Khu</button>` +
+                    `<button onclick="setStaffWingFilter('ALL')" data-wing="ALL" class="wing-pill py-1.5 px-2.5 rounded-lg text-xs ${curW === 'ALL' ? 'font-bold bg-white text-gray-900 shadow-2xs' : 'font-semibold text-gray-600 hover:text-gray-900'} transition">Tất cả ${wings.length} Khu</button>` +
                     wings.map((w, idx) => {
-                        const dot = idx === 0 ? 'bg-sky-500' : 'bg-emerald-500';
+                        const th = WING_CARD_THEMES[idx % WING_CARD_THEMES.length];
                         const activeCls = curW === w ? 'font-bold bg-white text-gray-900 shadow-2xs' : 'font-semibold text-gray-600 hover:text-gray-900';
-                        return `<button onclick="setStaffWingFilter('${w.replace(/'/g, "\'")}')" data-wing="${w.replace(/"/g, '&quot;')}" class="wing-pill py-1.5 px-2 rounded-lg text-xs ${activeCls} transition flex items-center justify-center gap-1"><span class="w-2 h-2 rounded-full ${dot}"></span> ${w}</button>`;
+                        return `<button onclick="setStaffWingFilter('${w.replace(/'/g, "\'")}')" data-wing="${w.replace(/"/g, '&quot;')}" class="wing-pill py-1.5 px-2.5 rounded-lg text-xs ${activeCls} transition flex items-center justify-center gap-1"><span class="w-2 h-2 rounded-full ${th.dot}"></span> ${w}</button>`;
                     }).join('');
             }
 
@@ -2108,21 +2155,21 @@
             const chartStats = calculateStats(filterSelect ? filterSelect.value : 'ALL');
 
             const activeWings = getActiveWings();
-            const w0Name = activeWings[0];
-            const w1Name = activeWings[1];
-            const ow = (w0Name && chartStats.wingStats[w0Name]) || { total: 0, done: 0, issue: 0 };
-            const owPct = ow.total > 0 ? Math.round((ow.done / ow.total) * 100) : 0;
-            document.getElementById('oceanWingPct').textContent = `${owPct}%`;
-            document.getElementById('oceanWingBar').style.width = `${owPct}%`;
-            document.getElementById('oceanWingRatio').textContent = `${ow.done}/${ow.total}`;
-            document.getElementById('oceanWingIssueText').textContent = `${ow.issue} sự cố`;
-
-            const gw = (w1Name && chartStats.wingStats[w1Name]) || { total: 0, done: 0, issue: 0 };
-            const gwPct = gw.total > 0 ? Math.round((gw.done / gw.total) * 100) : 0;
-            document.getElementById('gardenWingPct').textContent = `${gwPct}%`;
-            document.getElementById('gardenWingBar').style.width = `${gwPct}%`;
-            document.getElementById('gardenWingRatio').textContent = `${gw.done}/${gw.total}`;
-            document.getElementById('gardenWingIssueText').textContent = `${gw.issue} sự cố`;
+            if (!document.getElementById('wingPct_0')) {
+                syncPropertyUIControls();
+            }
+            activeWings.forEach((wName, idx) => {
+                const ws = chartStats.wingStats[wName] || { total: 0, done: 0, issue: 0 };
+                const wPct = ws.total > 0 ? Math.round((ws.done / ws.total) * 100) : 0;
+                const pctEl = document.getElementById(`wingPct_${idx}`);
+                const barEl = document.getElementById(`wingBar_${idx}`);
+                const ratEl = document.getElementById(`wingRatio_${idx}`);
+                const issEl = document.getElementById(`wingIssue_${idx}`);
+                if (pctEl) pctEl.textContent = `${wPct}%`;
+                if (barEl) barEl.style.width = `${wPct}%`;
+                if (ratEl) ratEl.textContent = `${ws.done}/${ws.total}`;
+                if (issEl) issEl.textContent = `${ws.issue} sự cố`;
+            });
 
             document.getElementById('legendDone').textContent = chartStats.done;
             document.getElementById('legendInProgress').textContent = chartStats.inProgress;
@@ -2140,7 +2187,7 @@
             const activeWings = getActiveWings();
             const activeFloors = getActiveRoomFloors();
             const labels = activeFloors.map(f => `Tầng ${f}`);
-            const palette = ['#0EA5E9', '#10B981'];
+            const palette = ['#0EA5E9', '#10B981', '#8B5CF6', '#F59E0B', '#F43F5E', '#06B6D4', '#6366F1', '#14B8A6', '#F97316', '#D946EF'];
             const datasets = activeWings.map((wName, idx) => ({
                 label: wName,
                 data: activeFloors.map(f => {
@@ -6363,19 +6410,16 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                     </div>
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                         <div>
-                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Số khu / cánh</label>
-                            <select id="propCfgWingCount" onchange="onPropCfgWingCountChange()" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold">
-                                <option value="2">2 Khu</option>
-                                <option value="1">1 Khu</option>
-                            </select>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Số khu / cánh (1–20)</label>
+                            <input type="number" id="propCfgWingCount" min="1" max="20" value="2" oninput="onPropCfgWingCountChange()" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold">
                         </div>
                         <div>
-                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Số tầng (1–12)</label>
-                            <input type="number" id="propCfgFloorCount" min="1" max="12" value="4" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold">
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Số tầng (1–60)</label>
+                            <input type="number" id="propCfgFloorCount" min="1" max="60" value="4" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold">
                         </div>
                         <div>
-                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Phòng / tầng / khu</label>
-                            <input type="number" id="propCfgRoomsPerFloor" min="1" max="60" value="20" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold">
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Phòng / tầng / khu (1–100)</label>
+                            <input type="number" id="propCfgRoomsPerFloor" min="1" max="100" value="20" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold">
                         </div>
                         <div class="flex items-end">
                             <button type="button" onclick="regeneratePropertyDraftAuto()" class="w-full px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer">
@@ -6383,16 +6427,7 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                             </button>
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <div>
-                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Tên Khu 1</label>
-                            <input type="text" id="propCfgWing1Name" value="Ocean Wing" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-bold">
-                        </div>
-                        <div id="propCfgWing2Wrap">
-                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Tên Khu 2</label>
-                            <input type="text" id="propCfgWing2Name" value="Garden Wing" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-bold">
-                        </div>
-                    </div>
+                    <div id="propCfgWingNamesGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-40 overflow-y-auto pr-0.5"></div>
                 </div>
 
                 <!-- Detailed Rooms per Floor -->
@@ -6411,8 +6446,15 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                         </label>
                     </div>
                     <div>
-                        <span class="block text-[11px] font-bold text-slate-600 mb-1.5">Chọn các tầng có lan can:</span>
-                        <div id="propCfgRailingFloorsWrap" class="flex flex-wrap gap-1.5"></div>
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                            <span class="text-[11px] font-bold text-slate-600">Chọn các tầng có lan can:</span>
+                            <div class="flex items-center gap-1.5 text-[11px]">
+                                <button type="button" onclick="selectPropCfgRailingFloorsPreset('all')" class="px-2 py-0.5 rounded-lg bg-white border border-amber-300 text-amber-800 font-bold hover:bg-amber-100 cursor-pointer">Tất cả tầng</button>
+                                <button type="button" onclick="selectPropCfgRailingFloorsPreset('from2')" class="px-2 py-0.5 rounded-lg bg-white border border-amber-300 text-amber-800 font-bold hover:bg-amber-100 cursor-pointer">Từ tầng 2+</button>
+                                <button type="button" onclick="selectPropCfgRailingFloorsPreset('none')" class="px-2 py-0.5 rounded-lg bg-white border border-slate-300 text-slate-600 font-bold hover:bg-slate-100 cursor-pointer">Bỏ chọn</button>
+                            </div>
+                        </div>
+                        <div id="propCfgRailingFloorsWrap" class="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-0.5"></div>
                     </div>
                     <div class="flex flex-wrap gap-3 pt-1 border-t border-amber-200/60 text-xs font-semibold text-slate-700">
                         <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="propCfgRailBalcony" checked class="rounded text-blue-600"> Ban công sau phòng</label>
@@ -7332,6 +7374,8 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
             regeneratePropertyDraftAuto,
             updatePropCfgRowCount,
             restoreFuramaDefaultConfig,
+            onPropCfgWingNameInput,
+            selectPropCfgRailingFloorsPreset,
             savePropertyConfigChanges
         });
 
@@ -7348,6 +7392,32 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
         // ---------------------------------------------------------------------
         let editingPropertyDraft = null;
 
+        function renderPropCfgWingNameInputs(wingCount, existingNames = []) {
+            const wrap = document.getElementById('propCfgWingNamesGrid');
+            if (!wrap) return;
+            const currentVals = {};
+            wrap.querySelectorAll('.prop-cfg-wing-name-input').forEach(inp => {
+                currentVals[Number(inp.dataset.wingIdx)] = inp.value;
+            });
+            let html = '';
+            for (let i = 0; i < wingCount; i++) {
+                const val = existingNames[i] !== undefined
+                    ? existingNames[i]
+                    : (currentVals[i] !== undefined ? currentVals[i] : getDefaultWingLabel(i));
+                html += `<div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Tên Khu ${i + 1}</label>
+                    <input type="text" data-wing-idx="${i}" value="${String(val).replace(/"/g, '&quot;')}" oninput="onPropCfgWingNameInput(${i}, this.value)" class="prop-cfg-wing-name-input w-full px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-bold">
+                </div>`;
+            }
+            wrap.innerHTML = html;
+        }
+
+        function onPropCfgWingNameInput(wIdx, val) {
+            if (editingPropertyDraft?.wings?.[wIdx]) {
+                editingPropertyDraft.wings[wIdx].name = String(val || '').trim() || getDefaultWingLabel(wIdx);
+            }
+        }
+
         function openPropertyConfigModal() {
             editingPropertyDraft = normalizePropertyConfig(activePropertyConfig);
             const modal = document.getElementById('propertyConfigModal');
@@ -7356,24 +7426,19 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
             const siteBadge = document.getElementById('propCfgSiteBadge');
             if (siteBadge) siteBadge.textContent = currentSiteName;
 
-            const wingCountSel = document.getElementById('propCfgWingCount');
+            const wingCountInp = document.getElementById('propCfgWingCount');
             const floorCountInp = document.getElementById('propCfgFloorCount');
             const rpfInp = document.getElementById('propCfgRoomsPerFloor');
-            const w1Inp = document.getElementById('propCfgWing1Name');
-            const w2Inp = document.getElementById('propCfgWing2Name');
-            const w2Wrap = document.getElementById('propCfgWing2Wrap');
             const railEn = document.getElementById('propCfgRailingEnabled');
 
             const floors = getActiveRoomFloors();
             const firstWing = editingPropertyDraft.wings[0];
             const avgRpf = firstWing && floors.length ? Math.max(1, (firstWing.floors[floors[0]] || []).length) : 20;
 
-            if (wingCountSel) wingCountSel.value = String(editingPropertyDraft.wings.length);
+            if (wingCountInp) wingCountInp.value = String(editingPropertyDraft.wings.length);
             if (floorCountInp) floorCountInp.value = String(floors.length);
             if (rpfInp) rpfInp.value = String(avgRpf);
-            if (w1Inp) w1Inp.value = editingPropertyDraft.wings[0]?.name || 'Khu A';
-            if (w2Inp) w2Inp.value = editingPropertyDraft.wings[1]?.name || 'Khu B';
-            if (w2Wrap) w2Wrap.classList.toggle('hidden', editingPropertyDraft.wings.length < 2);
+            renderPropCfgWingNameInputs(editingPropertyDraft.wings.length, editingPropertyDraft.wings.map(w => w.name));
 
             if (railEn) railEn.checked = editingPropertyDraft.railingEnabled !== false;
             const cbBal = document.getElementById('propCfgRailBalcony');
@@ -7399,27 +7464,39 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
         }
 
         function onPropCfgWingCountChange() {
-            const wc = parseInt(document.getElementById('propCfgWingCount')?.value, 10) || 2;
-            document.getElementById('propCfgWing2Wrap')?.classList.toggle('hidden', wc < 2);
-            regeneratePropertyDraftAuto();
+            const wc = Math.max(1, Math.min(20, parseInt(document.getElementById('propCfgWingCount')?.value, 10) || 2));
+            renderPropCfgWingNameInputs(wc);
         }
 
         function regeneratePropertyDraftAuto() {
-            const wingCount = Math.max(1, Math.min(2, parseInt(document.getElementById('propCfgWingCount')?.value, 10) || 2));
-            const floorCount = Math.max(1, Math.min(12, parseInt(document.getElementById('propCfgFloorCount')?.value, 10) || 4));
-            const rpf = Math.max(1, Math.min(60, parseInt(document.getElementById('propCfgRoomsPerFloor')?.value, 10) || 20));
-            const w1Name = (document.getElementById('propCfgWing1Name')?.value || '').trim() || 'Khu A';
-            const w2Name = (document.getElementById('propCfgWing2Name')?.value || '').trim() || 'Khu B';
+            const wingCount = Math.max(1, Math.min(20, parseInt(document.getElementById('propCfgWingCount')?.value, 10) || 2));
+            const floorCount = Math.max(1, Math.min(60, parseInt(document.getElementById('propCfgFloorCount')?.value, 10) || 4));
+            const rpf = Math.max(1, Math.min(100, parseInt(document.getElementById('propCfgRoomsPerFloor')?.value, 10) || 20));
+            renderPropCfgWingNameInputs(wingCount);
 
+            const inputNames = [];
+            document.querySelectorAll('#propCfgWingNamesGrid .prop-cfg-wing-name-input').forEach(inp => {
+                inputNames[Number(inp.dataset.wingIdx)] = (inp.value || '').trim();
+            });
+
+            const useWingPrefix = (wingCount * rpf) >= 100;
+            const usedNames = new Set();
             const wings = [];
             for (let wIdx = 0; wIdx < wingCount; wIdx++) {
-                const wName = wIdx === 0 ? w1Name : (w2Name === w1Name ? `${w2Name} 2` : w2Name);
-                const wCode = wIdx === 0 ? (wName === 'Ocean Wing' ? 'OW' : 'W1') : (wName === 'Garden Wing' ? 'GW' : 'W2');
+                let wName = inputNames[wIdx] || getDefaultWingLabel(wIdx);
+                if (usedNames.has(wName)) wName = `${wName} ${wIdx + 1}`;
+                usedNames.add(wName);
+                const wCode = wName === 'Ocean Wing' ? 'OW' : (wName === 'Garden Wing' ? 'GW' : `W${wIdx + 1}`);
                 const floors = {};
                 for (let f = 1; f <= floorCount; f++) {
-                    const startSeq = wIdx === 0 ? 1 : (rpf + 1);
+                    const startSeq = wIdx * rpf + 1;
                     const arr = [];
-                    for (let r = 0; r < rpf; r++) arr.push(`${f}${String(startSeq + r).padStart(2, '0')}`);
+                    for (let r = 0; r < rpf; r++) {
+                        arr.push(useWingPrefix
+                            ? `${wCode}-${f}${String(r + 1).padStart(2, '0')}`
+                            : `${f}${String(startSeq + r).padStart(2, '0')}`
+                        );
+                    }
                     floors[f] = arr;
                 }
                 wings.push({ name: wName, code: wCode, floors });
@@ -7441,6 +7518,15 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                 railingIncludeStairs: Boolean(document.getElementById('propCfgRailStairs')?.checked)
             };
             renderPropertyConfigEditorGrid();
+        }
+
+        function selectPropCfgRailingFloorsPreset(mode) {
+            document.querySelectorAll('.prop-cfg-rail-floor').forEach(cb => {
+                const fl = parseInt(cb.value, 10);
+                if (mode === 'all') cb.checked = true;
+                else if (mode === 'from2') cb.checked = fl >= 2;
+                else cb.checked = false;
+            });
         }
 
         function renderPropertyConfigEditorGrid() {
@@ -7468,14 +7554,23 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                     const checked = railSet.has(f) ? 'checked' : '';
                     return `<label class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-xs font-bold text-gray-700 cursor-pointer">
                         <input type="checkbox" class="prop-cfg-rail-floor rounded text-blue-600" value="${f}" ${checked}>
-                        <span>Tầng ${f}</span>
+                        <span>T${f}</span>
                     </label>`;
                 }).join('');
             }
 
+            const accents = [
+                'border-sky-200 bg-sky-50/40',
+                'border-emerald-200 bg-emerald-50/40',
+                'border-violet-200 bg-violet-50/40',
+                'border-amber-200 bg-amber-50/40',
+                'border-rose-200 bg-rose-50/40',
+                'border-cyan-200 bg-cyan-50/40'
+            ];
+
             if (grid) {
                 grid.innerHTML = editingPropertyDraft.wings.map((w, wIdx) => {
-                    const accent = wIdx === 0 ? 'border-sky-200 bg-sky-50/40' : 'border-emerald-200 bg-emerald-50/40';
+                    const accent = accents[wIdx % accents.length];
                     const rows = floors.map(f => {
                         const list = w.floors[f] || [];
                         return `<div class="flex flex-col sm:flex-row sm:items-center gap-1.5 bg-white p-2 rounded-xl border border-gray-200/80">
@@ -7489,13 +7584,13 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                                 class="prop-cfg-room-input flex-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>`;
                     }).join('');
-                    return `<div class="rounded-2xl border ${accent} p-3 space-y-2">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-extrabold text-gray-900">${w.name} (${w.code})</span>
-                            <span class="text-[10px] font-semibold text-gray-500">Nhập danh sách mã phòng, cách nhau bằng dấu phẩy</span>
-                        </div>
-                        <div class="space-y-1.5">${rows}</div>
-                    </div>`;
+                    return `<details ${wIdx < 2 ? 'open' : ''} class="rounded-2xl border ${accent} p-3 space-y-2">
+                        <summary class="flex items-center justify-between cursor-pointer list-none">
+                            <span class="text-xs font-extrabold text-gray-900">${w.name} (${w.code}) • ${floors.reduce((s, f) => s + (w.floors[f]?.length || 0), 0)} phòng</span>
+                            <span class="text-[10px] font-semibold text-gray-500">Bấm để mở/thu gọn từng tầng</span>
+                        </summary>
+                        <div class="space-y-1.5 pt-2 max-h-64 overflow-y-auto pr-0.5">${rows}</div>
+                    </details>`;
                 }).join('');
             }
         }
@@ -7514,9 +7609,7 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
             document.getElementById('propCfgWingCount').value = '2';
             document.getElementById('propCfgFloorCount').value = '4';
             document.getElementById('propCfgRoomsPerFloor').value = '26';
-            document.getElementById('propCfgWing1Name').value = 'Ocean Wing';
-            document.getElementById('propCfgWing2Name').value = 'Garden Wing';
-            document.getElementById('propCfgWing2Wrap')?.classList.remove('hidden');
+            renderPropCfgWingNameInputs(2, ['Ocean Wing', 'Garden Wing']);
             document.getElementById('propCfgRailingEnabled').checked = true;
             document.getElementById('propCfgRailBalcony').checked = true;
             document.getElementById('propCfgRailEntrance').checked = true;
@@ -7528,10 +7621,16 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
 
         async function savePropertyConfigChanges() {
             if (!editingPropertyDraft) return;
-            const w1Name = (document.getElementById('propCfgWing1Name')?.value || '').trim() || 'Khu A';
-            const w2Name = (document.getElementById('propCfgWing2Name')?.value || '').trim() || 'Khu B';
-            if (editingPropertyDraft.wings[0]) editingPropertyDraft.wings[0].name = w1Name;
-            if (editingPropertyDraft.wings[1]) editingPropertyDraft.wings[1].name = (w2Name === w1Name ? `${w2Name} 2` : w2Name);
+            const usedNames = new Set();
+            document.querySelectorAll('#propCfgWingNamesGrid .prop-cfg-wing-name-input').forEach(inp => {
+                const idx = Number(inp.dataset.wingIdx);
+                if (editingPropertyDraft.wings[idx]) {
+                    let nm = (inp.value || '').trim() || getDefaultWingLabel(idx);
+                    if (usedNames.has(nm)) nm = `${nm} ${idx + 1}`;
+                    usedNames.add(nm);
+                    editingPropertyDraft.wings[idx].name = nm;
+                }
+            });
 
             document.querySelectorAll('.prop-cfg-room-input').forEach(inp => {
                 const wIdx = parseInt(inp.dataset.wingIdx, 10);
