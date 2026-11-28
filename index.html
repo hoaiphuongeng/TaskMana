@@ -2159,6 +2159,53 @@
                             <input type="text" id="new-site-admin-pass" placeholder="Mặc định: 123" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold">
                         </div>
                     </div>
+                    <!-- Khai báo sơ đồ Phòng, Tầng & Lan can cho cơ sở mới -->
+                    <div class="pt-2.5 border-t border-slate-200/80 dark:border-slate-700 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center space-x-1.5">
+                                <i class="fa-solid fa-building-columns"></i>
+                                <span>Khai báo Phòng, Tầng & Lan Can</span>
+                            </span>
+                            <span id="new-site-structure-preview" class="text-[10px] font-bold text-slate-500 dark:text-slate-400">2 khu • 4 tầng • ~160 phòng</span>
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">Số khu / cánh</label>
+                                <select id="new-site-wing-count" onchange="updateNewSiteStructurePreview()" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 text-xs font-bold">
+                                    <option value="2" selected>2 Khu</option>
+                                    <option value="1">1 Khu</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">Số tầng (1–12)</label>
+                                <input type="number" id="new-site-floor-count" min="1" max="12" value="4" oninput="updateNewSiteStructurePreview()" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">Phòng / tầng / khu</label>
+                                <input type="number" id="new-site-rooms-per-floor" min="1" max="60" value="20" oninput="updateNewSiteStructurePreview()" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">Lan can từ tầng</label>
+                                <div class="flex items-center space-x-1.5">
+                                    <input type="checkbox" id="new-site-railing-enabled" checked onchange="updateNewSiteStructurePreview()" class="rounded text-indigo-600 w-4 h-4 cursor-pointer" title="Bật/Tắt hạng mục Lan Can">
+                                    <input type="number" id="new-site-railing-from-floor" min="1" max="12" value="2" oninput="updateNewSiteStructurePreview()" class="w-full px-2 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold" title="Bắt đầu có lan can từ tầng mấy">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">Tên Khu 1</label>
+                                <input type="text" id="new-site-wing1-name" value="Khu A" oninput="updateNewSiteStructurePreview()" placeholder="VD: Ocean Wing, Khu A..." class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold">
+                            </div>
+                            <div id="new-site-wing2-wrap">
+                                <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">Tên Khu 2</label>
+                                <input type="text" id="new-site-wing2-name" value="Khu B" oninput="updateNewSiteStructurePreview()" placeholder="VD: Garden Wing, Khu B..." class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold">
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-slate-500 dark:text-slate-400">
+                            <i class="fa-solid fa-circle-info text-indigo-500 mr-1"></i>Sau khi tạo, bạn có thể tinh chỉnh số phòng chi tiết từng tầng ngay trong mục <b>Dự Án Phòng & Lan Can → Cấu hình Phòng & Lan Can</b>.
+                        </p>
+                    </div>
                     <p class="text-[11px] text-slate-500 dark:text-slate-400">
                         <i class="fa-solid fa-shield-halved text-emerald-500 mr-1"></i>Tài khoản quản trị tối cao (<b>shp</b>) luôn được khởi tạo sẵn trong mọi cơ sở mới.
                     </p>
@@ -2327,7 +2374,8 @@
                         fullName: d.fullName || d.name || doc.id,
                         isDefault: doc.id === DEFAULT_SITE_ID,
                         active: d.active !== false,
-                        createdAt: d.createdAt || 0
+                        createdAt: d.createdAt || 0,
+                        propertyConfig: d.propertyConfig || null
                     });
                 });
                 if (!list.some(s => s.id === DEFAULT_SITE_ID)) {
@@ -2435,6 +2483,70 @@
             }).join('');
         }
 
+        function buildNewSitePropertyConfigFromForm() {
+            const wingCount = Math.max(1, Math.min(2, parseInt(document.getElementById('new-site-wing-count')?.value, 10) || 2));
+            const floorCount = Math.max(1, Math.min(12, parseInt(document.getElementById('new-site-floor-count')?.value, 10) || 4));
+            const roomsPerFloor = Math.max(1, Math.min(60, parseInt(document.getElementById('new-site-rooms-per-floor')?.value, 10) || 20));
+            const railingEnabled = Boolean(document.getElementById('new-site-railing-enabled')?.checked);
+            const railingFrom = Math.max(1, Math.min(floorCount, parseInt(document.getElementById('new-site-railing-from-floor')?.value, 10) || 2));
+            const w1Name = (document.getElementById('new-site-wing1-name')?.value || '').trim() || 'Khu A';
+            const w2Name = (document.getElementById('new-site-wing2-name')?.value || '').trim() || 'Khu B';
+
+            const wings = [];
+            for (let wIdx = 0; wIdx < wingCount; wIdx++) {
+                const wName = wIdx === 0 ? w1Name : (w2Name === w1Name ? w2Name + ' 2' : w2Name);
+                const wCode = wIdx === 0 ? 'W1' : 'W2';
+                const floorsMap = {};
+                for (let f = 1; f <= floorCount; f++) {
+                    const startNum = wIdx === 0 ? 1 : (roomsPerFloor + 1);
+                    const list = [];
+                    for (let r = 0; r < roomsPerFloor; r++) {
+                        const seq = startNum + r;
+                        list.push(`${f}${String(seq).padStart(2, '0')}`);
+                    }
+                    floorsMap[f] = list;
+                }
+                wings.push({ name: wName, code: wCode, floors: floorsMap });
+            }
+
+            const railingFloors = [];
+            if (railingEnabled) {
+                for (let f = railingFrom; f <= floorCount; f++) railingFloors.push(f);
+            }
+
+            return {
+                wings,
+                railingEnabled,
+                railingFloors,
+                railingIncludeBalcony: true,
+                railingIncludeEntrance: true,
+                railingIncludeCorridor: true,
+                railingIncludeStairs: true,
+                updatedAt: Date.now()
+            };
+        }
+
+        function updateNewSiteStructurePreview() {
+            const wingCount = Math.max(1, Math.min(2, parseInt(document.getElementById('new-site-wing-count')?.value, 10) || 2));
+            const floorCount = Math.max(1, Math.min(12, parseInt(document.getElementById('new-site-floor-count')?.value, 10) || 4));
+            const roomsPerFloor = Math.max(1, Math.min(60, parseInt(document.getElementById('new-site-rooms-per-floor')?.value, 10) || 20));
+            const railEn = Boolean(document.getElementById('new-site-railing-enabled')?.checked);
+            const railFrom = Math.max(1, Math.min(floorCount, parseInt(document.getElementById('new-site-railing-from-floor')?.value, 10) || 2));
+
+            const w2Wrap = document.getElementById('new-site-wing2-wrap');
+            if (w2Wrap) w2Wrap.classList.toggle('hidden', wingCount < 2);
+            const railInp = document.getElementById('new-site-railing-from-floor');
+            if (railInp) railInp.disabled = !railEn;
+
+            const totalRooms = wingCount * floorCount * roomsPerFloor;
+            const preview = document.getElementById('new-site-structure-preview');
+            if (preview) {
+                const railTxt = railEn ? ` • Lan can T${railFrom}–T${floorCount}` : ' • Không có lan can';
+                preview.innerText = `${wingCount} khu • ${floorCount} tầng • ${totalRooms} phòng${railTxt}`;
+            }
+        }
+        window.updateNewSiteStructurePreview = updateNewSiteStructurePreview;
+
         async function handleCreateNewSite(e) {
             e.preventDefault();
             if (!currentUser || currentUser.id !== 'shp') return;
@@ -2458,7 +2570,8 @@
             if (btn) btn.disabled = true;
             try {
                 const nowTs = Date.now();
-                const siteDoc = { id: siteId, name, fullName: name, isDefault: false, active: true, createdAt: nowTs };
+                const propertyConfig = buildNewSitePropertyConfigFromForm();
+                const siteDoc = { id: siteId, name, fullName: name, isDefault: false, active: true, createdAt: nowTs, propertyConfig };
                 await db.collection('system_sites').doc(siteId).set(siteDoc, { merge: true });
 
                 const shpBase = (cloudUsers.find(u => u.id === 'shp') || defaultUsers.find(u => u.id === 'shp') || {
@@ -5323,6 +5436,7 @@ let firestoreUnsubscribers = [];
                 type: 'TASKMANA_SYNC_AUTH',
                 siteId: currentSiteId,
                 siteName: getCurrentSiteName(),
+                siteConfig: getCurrentSiteObj()?.propertyConfig || null,
                 currentUser: currentUser ? {
                     id: currentUser.id,
                     name: currentUser.name || currentUser.nickname || currentUser.phone,
