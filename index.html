@@ -2245,6 +2245,7 @@
             db.settings({
                 ignoreUndefinedProperties: true,
                 experimentalAutoDetectLongPolling: true,
+                useFetchStreams: false,
                 cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
             });
         } catch(e) {
@@ -4840,9 +4841,22 @@ let firestoreUnsubscribers = [];
                     });
                     if (freshUsers.length > 0) {
                         cloudUsers = freshUsers;
+                        if (currentUser) {
+                            const updatedMe = cloudUsers.find(u => u.id === currentUser.id);
+                            if (updatedMe) {
+                                if (updatedMe.status === 'INACTIVE') {
+                                    handleLogout();
+                                    return;
+                                }
+                                currentUser = { ...updatedMe, password: updatedMe.password || currentUser.password, _siteId: currentSiteId, _siteName: getCurrentSiteName() };
+                                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(currentUser)); } catch (e) {}
+                            }
+                        }
                         populateAssignees();
                         populateDepartmentFilters();
                         renderUsers();
+                        if (typeof syncTaskmanaDataToRoomOps === 'function') syncTaskmanaDataToRoomOps();
+                        if (typeof syncTaskmanaDataToKiemDinh === 'function') syncTaskmanaDataToKiemDinh();
                     }
                 }
 
@@ -4884,11 +4898,22 @@ let firestoreUnsubscribers = [];
 
         let _tmListenersInitInFlight = false;
         let _tmLastResumeTriggerTs = 0;
+        let _tmActiveListenersSiteId = '';
+
+        function notifyChildIframesResumeSync() {
+            ['room-ops-iframe', 'kiemdinh-iframe'].forEach(frameId => {
+                const f = document.getElementById(frameId);
+                if (f && f.contentWindow) {
+                    try { f.contentWindow.postMessage({ type: 'TASKMANA_RESUME_SYNC' }, '*'); } catch (e) {}
+                }
+            });
+        }
 
         window.addEventListener('online', () => {
             forceReconnectFirestore().then(() => {
                 if (firestoreUnsubscribers.length === 0) initOptimizedListeners(false);
                 syncAllCollectionsFromServer(false);
+                notifyChildIframesResumeSync();
             });
         });
 
@@ -4896,7 +4921,7 @@ let firestoreUnsubscribers = [];
             if (!navigator.onLine) return;
             const now = Date.now();
             // Chống gọi trùng lặp khi visibilitychange và focus kích hoạt cùng lúc
-            if (now - _tmLastResumeTriggerTs < 2500) return;
+            if (now - _tmLastResumeTriggerTs < 3500) return;
             _tmLastResumeTriggerTs = now;
 
             forceReconnectFirestore().then(() => {
@@ -4904,6 +4929,7 @@ let firestoreUnsubscribers = [];
                     initOptimizedListeners(false);
                 }
                 syncAllCollectionsFromServer(false);
+                notifyChildIframesResumeSync();
             });
         }
 
@@ -4930,7 +4956,9 @@ let firestoreUnsubscribers = [];
             }
 
             if (_tmListenersInitInFlight) return;
-            if (!forceReset && firestoreUnsubscribers.length > 0) return;
+            const siteChangedForListeners = _tmActiveListenersSiteId && _tmActiveListenersSiteId !== currentSiteId;
+            if (!forceReset && !siteChangedForListeners && firestoreUnsubscribers.length > 0) return;
+            if (siteChangedForListeners) forceReset = true;
 
             _tmListenersInitInFlight = true;
             try {
@@ -5216,6 +5244,7 @@ let firestoreUnsubscribers = [];
                 console.warn("Firestore integrated_websites sync notice:", err.message || err);
             });
 
+            _tmActiveListenersSiteId = currentSiteId;
             firestoreUnsubscribers.push(unsubUsers, unsubTasks, unsubSchedules, unsubWebTool, unsubWebsites);
             _tmListenersInitInFlight = false;
         }
@@ -5277,14 +5306,22 @@ let firestoreUnsubscribers = [];
                     return;
                 }
 
+                if (currentUser._siteId) {
+                    const nextSite = String(currentUser._siteId);
+                    const needRebind = nextSite !== currentSiteId || (_tmActiveListenersSiteId && _tmActiveListenersSiteId !== nextSite);
+                    currentSiteId = nextSite;
+                    try { localStorage.setItem(SELECTED_SITE_LS_KEY, currentSiteId); } catch (e) {}
+                    if (needRebind) {
+                        cloudTasks = [];
+                        cloudSchedules = {};
+                        initialTaskIds.clear();
+                        isTaskSyncInitialized = false;
+                        initOptimizedListeners(true);
+                    }
+                }
                 if (viewAuth) viewAuth.classList.add('hidden');
                 if (viewMain) viewMain.classList.remove('hidden');
                 updateUserSidebarUI();
-
-                if (currentUser._siteId) {
-                    currentSiteId = String(currentUser._siteId);
-                    try { localStorage.setItem(SELECTED_SITE_LS_KEY, currentSiteId); } catch (e) {}
-                }
                 updateSiteUiBadges();
                 const isSuperAdminOrAdmin = (currentUser.id === 'shp' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN');
 
