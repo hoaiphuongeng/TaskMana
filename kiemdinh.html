@@ -131,7 +131,7 @@
                 <div class="min-w-0">
                     <div class="flex items-center space-x-2">
                         <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-slate-950 dark:text-white truncate">Kiểm Định Thiết Bị Khách Sạn</h1>
-                        <span id="sync-status-pill" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 dark:bg-emerald-900/70 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">Cloud Sync</span>
+                        <button type="button" id="sync-status-pill" onclick="syncKiemDinhFromServer(true)" title="Bấm để đồng bộ lại ngay từ Firestore" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 dark:bg-emerald-900/70 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 cursor-pointer hover:opacity-85 transition">Cloud Sync</button>
                     </div>
                     <p id="header-subtitle" class="text-xs font-medium text-slate-600 dark:text-slate-300 truncate">Theo dõi hạn kiểm định thang máy, nồi hơi, PCCC, trạm điện, HVAC & đo lường</p>
                 </div>
@@ -386,7 +386,7 @@
         try {
             if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
             db = firebase.firestore();
-            db.settings({ ignoreUndefinedProperties: true, experimentalAutoDetectLongPolling: true });
+            db.settings({ ignoreUndefinedProperties: true, experimentalAutoDetectLongPolling: true, useFetchStreams: false });
         } catch (e) {
             console.warn('Firestore fallback to localStorage:', e);
         }
@@ -432,7 +432,7 @@
             { id: 'hvthuc', name: 'Huỳnh Văn Thúc', dept: 'Cơ Điện & Chiếu Sáng (ME)', role: 'staff', active: true }
         ];
 
-        let currentUser = { id: 'shp', name: 'Quản trị viên', role: 'admin' };
+        let currentUser = isEmbeddedInTaskmana ? null : { id: 'shp', name: 'Quản trị viên', role: 'admin' };
         let inspections = [];
         let urgencyFilter = 'all';
         let categoryFilter = 'all';
@@ -489,7 +489,8 @@
         }
 
         function isAdminUser() {
-            return !currentUser || currentUser.role === 'admin' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN' || currentUser.id === 'shp';
+            if (!currentUser) return !isEmbeddedInTaskmana;
+            return currentUser.role === 'admin' || currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN' || currentUser.id === 'shp';
         }
 
         function getSampleInspections() {
@@ -542,46 +543,199 @@
         }
 
         let kdIsCloudLoading = false;
-        function initFirestoreSync() {
+        let kdRealtimeHealthy = false;
+        let kdActiveSiteId = '';
+        let kdLastServerSyncTs = 0;
+        let kdLastResumeTs = 0;
+        let kdResyncInFlight = false;
+        let kdConsecutiveErrors = 0;
+        let kdReconnectTimer = null;
+
+        function setKdSyncPill(status, text) {
             const pill = document.getElementById('sync-status-pill');
+            if (!pill) return;
+            const base = 'px-2.5 py-0.5 rounded-full text-[11px] font-bold border cursor-pointer hover:opacity-85 transition ';
+            if (status === 'syncing') {
+                pill.className = base + 'bg-amber-100 dark:bg-amber-900/70 text-amber-900 dark:text-amber-100 border-amber-300 dark:border-amber-700';
+                pill.textContent = text || 'Đang đồng bộ...';
+            } else if (status === 'offline') {
+                pill.className = base + 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600';
+                pill.textContent = text || 'Offline';
+            } else if (status === 'error') {
+                pill.className = base + 'bg-rose-100 dark:bg-rose-900/70 text-rose-900 dark:text-rose-100 border-rose-300 dark:border-rose-700';
+                pill.textContent = text || 'Mất đồng bộ • Thử lại';
+            } else {
+                pill.className = base + 'bg-emerald-100 dark:bg-emerald-900/70 text-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700';
+                pill.textContent = text || 'Cloud Sync';
+            }
+        }
+
+        function scheduleKdReconnect() {
+            if (!navigator.onLine) {
+                setKdSyncPill('offline', 'Offline');
+                return;
+            }
+            kdRealtimeHealthy = false;
+            kdConsecutiveErrors++;
+            const delayMs = Math.min(30000, 2500 * Math.pow(2, Math.min(kdConsecutiveErrors - 1, 3)));
+            if (kdConsecutiveErrors <= 1) {
+                setKdSyncPill('syncing', 'Đang kết nối lại...');
+            } else {
+                setKdSyncPill('error', 'Mất đồng bộ • Thử lại');
+            }
+            if (kdReconnectTimer) return;
+            kdReconnectTimer = setTimeout(() => {
+                kdReconnectTimer = null;
+                if (!navigator.onLine) { setKdSyncPill('offline', 'Offline'); return; }
+                (db ? db.enableNetwork().catch(() => {}) : Promise.resolve()).finally(() => {
+                    initFirestoreSync(true);
+                    syncKiemDinhFromServer(false, { silent: true });
+                });
+            }, delayMs);
+        }
+
+        async function syncKiemDinhFromServer(showNotify = false, { silent = false } = {}) {
+            if (!db) {
+                setKdSyncPill('offline', 'Offline Local');
+                return;
+            }
+            if (!navigator.onLine) {
+                setKdSyncPill('offline', 'Offline');
+                if (showNotify) showToast('Thiết bị đang ngoại tuyến, chưa thể đồng bộ.', true);
+                return;
+            }
+            const now = Date.now();
+            if (!showNotify && (now - kdLastServerSyncTs < 5000)) return;
+            if (kdResyncInFlight) return;
+
+            kdResyncInFlight = true;
+            if (!silent) setKdSyncPill('syncing', 'Đang đồng bộ...');
+            try {
+                await db.enableNetwork().catch(() => {});
+                const snap = await Promise.race([
+                    kdCol().get({ source: 'server' }),
+                    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))
+                ]);
+                const list = [];
+                snap.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
+                inspections = list;
+                kdIsCloudLoading = false;
+                kdConsecutiveErrors = 0;
+                kdLastServerSyncTs = Date.now();
+                if (kdReconnectTimer) { clearTimeout(kdReconnectTimer); kdReconnectTimer = null; }
+                saveLocal();
+                renderInspections();
+                setKdSyncPill('synced', 'Cloud Sync');
+                if (showNotify) showToast(`Đã đồng bộ ${inspections.length} thiết bị kiểm định từ Cloud.`);
+            } catch (err) {
+                console.warn('syncKiemDinhFromServer notice:', err.message || err);
+                kdConsecutiveErrors++;
+                if (showNotify || kdConsecutiveErrors >= 2) {
+                    setKdSyncPill('error', 'Mất đồng bộ • Thử lại');
+                    if (showNotify) showToast('Lỗi đồng bộ kiểm định: ' + (err.message || err), true);
+                } else {
+                    setKdSyncPill('syncing', 'Đang kết nối lại...');
+                    setTimeout(() => { if (navigator.onLine && !kdResyncInFlight) syncKiemDinhFromServer(false, { silent: false }); }, 3500);
+                }
+            } finally {
+                kdResyncInFlight = false;
+            }
+        }
+        window.syncKiemDinhFromServer = syncKiemDinhFromServer;
+
+        function initFirestoreSync(forceReset = false) {
             if (!db) {
                 kdIsCloudLoading = false;
-                if (pill) pill.textContent = 'Offline Local';
+                setKdSyncPill('offline', 'Offline Local');
                 renderInspections();
                 return;
             }
+            if (!navigator.onLine) {
+                setKdSyncPill('offline', 'Offline');
+                return;
+            }
+            if (!forceReset && typeof kdFirestoreUnsub === 'function' && kdActiveSiteId === currentSiteId && kdRealtimeHealthy) {
+                return;
+            }
+
+            const startWatch = () => {
+                kdActiveSiteId = currentSiteId;
+                kdIsCloudLoading = inspections.length === 0;
+                if (kdIsCloudLoading) setKdSyncPill('syncing', 'Đang đồng bộ...');
+                renderInspections();
+
+                kdFirestoreUnsub = kdCol().onSnapshot({ includeMetadataChanges: true }, snap => {
+                    const isFromServer = !snap.metadata.fromCache;
+                    if (isFromServer) {
+                        kdRealtimeHealthy = true;
+                        kdConsecutiveErrors = 0;
+                        kdLastServerSyncTs = Date.now();
+                        if (kdReconnectTimer) { clearTimeout(kdReconnectTimer); kdReconnectTimer = null; }
+                    }
+                    if (!snap.empty) {
+                        const list = [];
+                        snap.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
+                        inspections = list;
+                        kdIsCloudLoading = false;
+                        saveLocal();
+                        renderInspections();
+                    } else if (isFromServer) {
+                        inspections = [];
+                        kdIsCloudLoading = false;
+                        saveLocal();
+                        renderInspections();
+                    }
+                    setKdSyncPill('synced', isFromServer ? 'Cloud Sync' : 'Cache Sync');
+                }, err => {
+                    kdIsCloudLoading = false;
+                    console.warn('Firestore sync fallback:', err.message || err);
+                    scheduleKdReconnect();
+                    renderInspections();
+                });
+
+                setTimeout(() => {
+                    if (!kdRealtimeHealthy && navigator.onLine) {
+                        syncKiemDinhFromServer(false, { silent: inspections.length > 0 });
+                    }
+                }, 2000);
+            };
+
             if (typeof kdFirestoreUnsub === 'function') {
                 try { kdFirestoreUnsub(); } catch (e) {}
                 kdFirestoreUnsub = null;
+                setTimeout(startWatch, 150);
+            } else {
+                startWatch();
             }
-            kdIsCloudLoading = inspections.length === 0;
-            if (pill) pill.textContent = 'Đang đồng bộ...';
-            renderInspections();
-
-            kdFirestoreUnsub = kdCol().onSnapshot({ includeMetadataChanges: true }, snap => {
-                const isFromServer = !snap.metadata.fromCache;
-                if (!snap.empty) {
-                    const list = [];
-                    snap.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
-                    inspections = list;
-                    kdIsCloudLoading = false;
-                    saveLocal();
-                    renderInspections();
-                } else if (isFromServer) {
-                    // Server xác nhận cơ sở hiện tại chưa có thiết bị nào -> giữ danh sách trống, không tự nạp dữ liệu mẫu
-                    inspections = [];
-                    kdIsCloudLoading = false;
-                    saveLocal();
-                    renderInspections();
-                }
-                if (pill) pill.textContent = isFromServer ? 'Cloud Sync' : 'Cache Sync';
-            }, err => {
-                kdIsCloudLoading = false;
-                console.warn('Firestore sync fallback:', err.message || err);
-                if (pill) pill.textContent = 'Local Mode';
-                renderInspections();
-            });
         }
+
+        function handleKdResumeSync() {
+            if (!navigator.onLine) { setKdSyncPill('offline', 'Offline'); return; }
+            const now = Date.now();
+            if (now - kdLastResumeTs < 4000) return;
+            kdLastResumeTs = now;
+            if (!kdRealtimeHealthy || typeof kdFirestoreUnsub !== 'function' || kdActiveSiteId !== currentSiteId) {
+                (db ? db.enableNetwork().catch(() => {}) : Promise.resolve()).finally(() => {
+                    initFirestoreSync(true);
+                    syncKiemDinhFromServer(false, { silent: true });
+                });
+            } else if (now - kdLastServerSyncTs > 60000) {
+                syncKiemDinhFromServer(false, { silent: true });
+            }
+        }
+
+        window.addEventListener('offline', () => { kdRealtimeHealthy = false; setKdSyncPill('offline', 'Offline'); });
+        window.addEventListener('online', () => {
+            kdConsecutiveErrors = 0;
+            if (kdReconnectTimer) { clearTimeout(kdReconnectTimer); kdReconnectTimer = null; }
+            (db ? db.enableNetwork().catch(() => {}) : Promise.resolve()).finally(() => {
+                initFirestoreSync(true);
+                syncKiemDinhFromServer(false, { silent: false });
+            });
+        });
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') handleKdResumeSync(); });
+        window.addEventListener('focus', () => handleKdResumeSync());
+        window.addEventListener('pageshow', (e) => { if (e.persisted) handleKdResumeSync(); });
 
         // ==================== RENDER GIAO DIỆN ====================
         function renderCategoryPills() {
@@ -1056,13 +1210,16 @@
                     if (Array.isArray(msg.users) && msg.users.length > 0) {
                         staffList = msg.users;
                     }
-                    if (msg.currentUser) {
-                        currentUser = msg.currentUser;
+                    if ('currentUser' in msg) {
+                        currentUser = msg.currentUser || null;
                     }
                     if (typeof msg.isDark === 'boolean') {
                         document.documentElement.classList.toggle('dark', msg.isDark);
                     }
                     renderInspections();
+                    handleKdResumeSync();
+                } else if (msg.type === 'TASKMANA_RESUME_SYNC') {
+                    handleKdResumeSync();
                 } else if (msg.type === 'TASKMANA_SYNC_THEME' && typeof msg.isDark === 'boolean') {
                     document.documentElement.classList.toggle('dark', msg.isDark);
                 } else if (msg.type === 'TASKMANA_MODULE_ACTION') {
