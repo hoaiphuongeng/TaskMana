@@ -1211,6 +1211,7 @@
             try {
                 db = initializeFirestore(app, {
                     experimentalAutoDetectLongPolling: true,
+                    useFetchStreams: false,
                     ignoreUndefinedProperties: true
                 });
             } catch (initErr) {
@@ -6781,9 +6782,15 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
         };
         let firestoreUnsubscribers = [];
         let lastServerSyncTs = 0;
+        let lastResumeTriggerTs = 0;
         let lastFirestoreError = '';
         let resyncInFlight = false;
         let hasCompletedInitialSync = false;
+        let realtimeHealthy = false;
+        let activeListenersSiteId = '';
+        let consecutiveSyncErrors = 0;
+        let reconnectTimer = null;
+        let syncInitInFlight = false;
 
         function saveRoomOpsLocalCache() {
             try {
@@ -6854,14 +6861,24 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
             return null;
         }
 
-        async function fetchCollectionViaRest(colName) {
+        async function fetchCollectionViaRest(colName, timeoutMs = 15000) {
             const docs = [];
             let pageToken = '';
             let guard = 0;
             while (guard < 10) {
                 guard++;
                 const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/${roRestPath(colName)}?pageSize=300${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}&key=${encodeURIComponent(firebaseConfig.apiKey)}`;
-                const res = await fetch(url, { cache: 'no-store' });
+                const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+                let res;
+                try {
+                    res = await fetch(url, { cache: 'no-store', signal: controller?.signal });
+                } finally {
+                    if (timer) clearTimeout(timer);
+                }
+                if (res.status === 404) {
+                    return [];
+                }
                 if (!res.ok) {
                     const errText = await res.text().catch(() => '');
                     throw new Error(`REST ${colName} HTTP ${res.status}: ${errText.slice(0, 120)}`);
@@ -6894,6 +6911,12 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                 if (dotMob) dotMob.className = 'w-2 h-2 rounded-full bg-amber-500 animate-ping';
                 if (textMob) textMob.textContent = 'Đang đồng bộ';
                 if (badgeMob) badgeMob.className = 'flex md:hidden items-center gap-1.5 bg-amber-500/15 text-amber-700 px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition';
+            } else if (status === 'offline') {
+                if (dotDesk) dotDesk.className = 'w-2 h-2 rounded-full bg-gray-400';
+                if (textDesk) textDesk.textContent = detail || 'Đang ngoại tuyến • Tự đồng bộ khi có mạng';
+                if (dotMob) dotMob.className = 'w-2 h-2 rounded-full bg-gray-400';
+                if (textMob) textMob.textContent = 'Offline';
+                if (badgeMob) badgeMob.className = 'flex md:hidden items-center gap-1.5 bg-gray-500/15 text-gray-700 px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition';
             } else if (status === 'error') {
                 if (dotDesk) dotDesk.className = 'w-2 h-2 rounded-full bg-red-500';
                 if (textDesk) textDesk.textContent = detail || 'Mất đồng bộ • Bấm thử lại';
@@ -6902,7 +6925,7 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                 if (badgeMob) badgeMob.className = 'flex md:hidden items-center gap-1.5 bg-red-500/15 text-red-700 px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition';
             } else {
                 if (dotDesk) dotDesk.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
-                if (textDesk) textDesk.textContent = detail || 'Đã đồng bộ Firestore • roomtracking-9c5ab';
+                if (textDesk) textDesk.textContent = detail || `Đã đồng bộ Firestore • ${currentSiteName}`;
                 if (dotMob) dotMob.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
                 if (textMob) textMob.textContent = 'Live Sync';
                 if (badgeMob) badgeMob.className = 'flex md:hidden items-center gap-1.5 bg-emerald-500/10 text-emerald-700 px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition';
@@ -6991,17 +7014,47 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
             renderAdminActivityFeed();
         }
 
-        async function syncRoomOpsFromServer(showNotify = false) {
+        function scheduleRealtimeReconnect(reason = '') {
             if (!navigator.onLine) {
+                updateSyncIndicator('offline');
+                return;
+            }
+            realtimeHealthy = false;
+            consecutiveSyncErrors++;
+            const delayMs = Math.min(30000, 2500 * Math.pow(2, Math.min(consecutiveSyncErrors - 1, 3)));
+            if (consecutiveSyncErrors <= 1) {
+                updateSyncIndicator('syncing', 'Đang kết nối lại Firestore...');
+            } else {
+                updateSyncIndicator('error', 'Mất đồng bộ • Bấm thử lại');
+            }
+            if (reconnectTimer) return;
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                if (!navigator.onLine) {
+                    updateSyncIndicator('offline');
+                    return;
+                }
+                (db ? enableNetwork(db).catch(() => {}) : Promise.resolve()).finally(() => {
+                    initFirestoreRealtimeSync(true);
+                    syncRoomOpsFromServer(false, { silent: true });
+                });
+            }, delayMs);
+        }
+
+        async function syncRoomOpsFromServer(showNotify = false, { silent = false } = {}) {
+            if (!navigator.onLine) {
+                updateSyncIndicator('offline');
                 if (showNotify) showToast('Thiết bị đang ngoại tuyến, chưa thể đồng bộ.', 'error');
                 return;
             }
             const now = Date.now();
-            if (!showNotify && (now - lastServerSyncTs < 3000)) return;
+            if (!showNotify && (now - lastServerSyncTs < 5000)) return;
             if (resyncInFlight) return;
 
             resyncInFlight = true;
-            updateSyncIndicator('syncing');
+            if (!silent || !hasCompletedInitialSync) {
+                updateSyncIndicator('syncing');
+            }
             try {
                 let loadedViaSdk = false;
                 if (db) {
@@ -7014,11 +7067,11 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                         const [projSnap, tasksSnap, logsSnap] = await withTimeout(Promise.all([
                             getDocsFromServer(roCol('projects')),
                             getDocsFromServer(roCol('tasks')),
-                            getDocsFromServer(roCol('activity_logs'))
-                        ]), 8000);
+                            getDocsFromServer(roCol('activity_logs')).catch(() => null)
+                        ]), 15000);
                         applyProjectsSnapshot(projSnap, true);
                         applyTasksSnapshot(tasksSnap, true);
-                        applyLogsSnapshot(logsSnap);
+                        if (logsSnap) applyLogsSnapshot(logsSnap);
                         loadedViaSdk = true;
                     } catch (sdkErr) {
                         console.warn('SDK getDocsFromServer fallback to REST:', sdkErr.message || sdkErr);
@@ -7030,7 +7083,7 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                     const [projDocs, taskDocs, logDocs] = await Promise.all([
                         fetchCollectionViaRest('projects'),
                         fetchCollectionViaRest('tasks'),
-                        fetchCollectionViaRest('activity_logs')
+                        fetchCollectionViaRest('activity_logs').catch(() => [])
                     ]);
                     const projList = projDocs.map(d => ({ ...d.data, id: d.id }));
                     const taskMap = {};
@@ -7041,11 +7094,15 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                     const logList = logDocs.map(d => ({ ...d.data, id: d.id }));
                     applyProjectsArray(projList, true);
                     applyTasksMap(taskMap, true);
-                    state.activityLogs = sortActivityLogsList(logList).slice(0, 25);
-                    renderAdminActivityFeed();
+                    if (logList.length > 0) {
+                        state.activityLogs = sortActivityLogsList(logList).slice(0, 25);
+                        renderAdminActivityFeed();
+                    }
                 }
 
                 lastFirestoreError = '';
+                consecutiveSyncErrors = 0;
+                if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
                 lastServerSyncTs = Date.now();
                 hasCompletedInitialSync = true;
                 updateSyncIndicator('synced');
@@ -7055,122 +7112,174 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
             } catch (err) {
                 console.error('syncRoomOpsFromServer error:', err);
                 lastFirestoreError = err?.message || String(err);
-                updateSyncIndicator('error', 'Lỗi kết nối Cloud • Bấm thử lại');
-                updateAdminDashboard();
-                if (showNotify) showToast('Lỗi đồng bộ Firestore: ' + lastFirestoreError, 'error');
+                consecutiveSyncErrors++;
+                if (showNotify || consecutiveSyncErrors >= 2 || !hasCompletedInitialSync) {
+                    updateSyncIndicator('error', 'Mất đồng bộ • Bấm thử lại');
+                    updateAdminDashboard();
+                    if (showNotify) showToast('Lỗi đồng bộ Firestore: ' + lastFirestoreError, 'error');
+                } else {
+                    // Lỗi thoáng qua lần đầu: tự thử lại sau 3.5 giây mà chưa nhấp nháy đỏ gây hoang mang
+                    updateSyncIndicator('syncing', 'Đang kết nối lại...');
+                    setTimeout(() => {
+                        if (navigator.onLine && !resyncInFlight) {
+                            syncRoomOpsFromServer(false, { silent: false });
+                        }
+                    }, 3500);
+                }
             } finally {
                 resyncInFlight = false;
             }
         }
 
         function initFirestoreRealtimeSync(forceReset = false) {
+            if (!navigator.onLine) {
+                updateSyncIndicator('offline');
+                return;
+            }
             if (!db) {
-                updateSyncIndicator('error', 'Đang dùng REST fallback...');
                 syncRoomOpsFromServer(false);
                 return;
             }
+            if (syncInitInFlight) return;
+            if (!forceReset && firestoreUnsubscribers.length > 0 && activeListenersSiteId === currentSiteId && realtimeHealthy) {
+                return;
+            }
+
+            syncInitInFlight = true;
+            const setupListeners = () => {
+                try {
+                    if (firestoreUnsubscribers.length > 0) {
+                        firestoreUnsubscribers.forEach(unsub => { try { unsub(); } catch (_) {} });
+                        firestoreUnsubscribers = [];
+                    }
+                    activeListenersSiteId = currentSiteId;
+                    if (!hasCompletedInitialSync) {
+                        updateSyncIndicator('syncing');
+                    }
+
+                    if (!isEmbeddedInTaskmana) {
+                        const unsubStaff = onSnapshot(roCol('staff_members'), (snap) => {
+                            const list = [];
+                            snap.forEach(d => {
+                                const fallback = DEFAULT_STAFF_MEMBERS.find(s => s.id === d.id) || {};
+                                list.push({ ...fallback, ...d.data(), id: d.id });
+                            });
+                            if (list.length > 0) {
+                                state.staffMembers = list;
+                                populateStaffDropdowns();
+                                if (document.getElementById('adminSettingsBackdrop')?.classList.contains('active')) renderSettingsStaffList();
+                                if (state.currentRole === 'staff') renderStaffView();
+                            }
+                        }, (err) => console.warn('staff_members sync notice:', err));
+                        firestoreUnsubscribers.push(unsubStaff);
+                    }
+
+                    const onRealtimeHealthy = () => {
+                        lastFirestoreError = '';
+                        consecutiveSyncErrors = 0;
+                        realtimeHealthy = true;
+                        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+                        lastServerSyncTs = Date.now();
+                        hasCompletedInitialSync = true;
+                        updateSyncIndicator('synced');
+                    };
+
+                    const unsubProjects = onSnapshot(roCol('projects'), { includeMetadataChanges: true }, (snap) => {
+                        const isServer = !snap.metadata.fromCache;
+                        if (isServer) onRealtimeHealthy();
+                        if (isServer || snap.size > 0) {
+                            applyProjectsSnapshot(snap, isServer);
+                        }
+                    }, (err) => {
+                        console.warn('projects sync error:', err?.message || err);
+                        lastFirestoreError = err?.message || String(err);
+                        scheduleRealtimeReconnect('projects');
+                    });
+
+                    const unsubTasks = onSnapshot(roCol('tasks'), { includeMetadataChanges: true }, (snap) => {
+                        const isServer = !snap.metadata.fromCache;
+                        if (isServer) onRealtimeHealthy();
+                        if (isServer || snap.size > 0) {
+                            applyTasksSnapshot(snap, isServer);
+                        }
+                    }, (err) => {
+                        console.warn('tasks sync error:', err?.message || err);
+                        lastFirestoreError = err?.message || String(err);
+                        scheduleRealtimeReconnect('tasks');
+                    });
+
+                    const unsubLogs = onSnapshot(roCol('activity_logs'), (snap) => {
+                        applyLogsSnapshot(snap);
+                    }, (err) => console.warn('activity_logs sync notice:', err));
+
+                    firestoreUnsubscribers.push(unsubProjects, unsubTasks, unsubLogs);
+
+                    // Kéo chủ động 1 lần nếu onSnapshot bị trễ sau 1.8 giây
+                    setTimeout(() => {
+                        if (!hasCompletedInitialSync || state.projects.length === 0) {
+                            syncRoomOpsFromServer(false, { silent: hasCompletedInitialSync });
+                        }
+                    }, 1800);
+                } catch (err) {
+                    console.warn('Firestore realtime sync warning:', err);
+                    lastFirestoreError = err?.message || String(err);
+                    scheduleRealtimeReconnect('init');
+                } finally {
+                    syncInitInFlight = false;
+                }
+            };
+
+            // Khi forceReset: chờ 150ms sau khi gỡ listener cũ để tránh lỗi Target ID already exists trong Firebase SDK
             if (forceReset && firestoreUnsubscribers.length > 0) {
                 firestoreUnsubscribers.forEach(unsub => { try { unsub(); } catch (_) {} });
                 firestoreUnsubscribers = [];
-            }
-            if (firestoreUnsubscribers.length > 0) return;
-
-            updateSyncIndicator('syncing');
-            try {
-                if (!isEmbeddedInTaskmana) {
-                    const unsubStaff = onSnapshot(roCol('staff_members'), (snap) => {
-                        const list = [];
-                        snap.forEach(d => {
-                            const fallback = DEFAULT_STAFF_MEMBERS.find(s => s.id === d.id) || {};
-                            list.push({ ...fallback, ...d.data(), id: d.id });
-                        });
-                        if (list.length > 0) {
-                            state.staffMembers = list;
-                            populateStaffDropdowns();
-                            if (document.getElementById('adminSettingsBackdrop')?.classList.contains('active')) renderSettingsStaffList();
-                            if (state.currentRole === 'staff') renderStaffView();
-                        }
-                    }, (err) => console.warn('staff_members sync notice:', err));
-                    firestoreUnsubscribers.push(unsubStaff);
-                }
-
-                const unsubProjects = onSnapshot(roCol('projects'), { includeMetadataChanges: true }, (snap) => {
-                    const isServer = !snap.metadata.fromCache;
-                    if (isServer) {
-                        lastFirestoreError = '';
-                        lastServerSyncTs = Date.now();
-                        hasCompletedInitialSync = true;
-                        updateSyncIndicator('synced');
-                    }
-                    if (isServer || snap.size > 0) {
-                        applyProjectsSnapshot(snap, isServer);
-                    }
-                }, (err) => {
-                    console.error('projects sync error:', err);
-                    lastFirestoreError = err?.message || String(err);
-                    updateSyncIndicator('error');
-                    syncRoomOpsFromServer(false);
-                });
-
-                const unsubTasks = onSnapshot(roCol('tasks'), { includeMetadataChanges: true }, (snap) => {
-                    const isServer = !snap.metadata.fromCache;
-                    if (isServer) {
-                        lastFirestoreError = '';
-                        lastServerSyncTs = Date.now();
-                        hasCompletedInitialSync = true;
-                        updateSyncIndicator('synced');
-                    }
-                    if (isServer || snap.size > 0) {
-                        applyTasksSnapshot(snap, isServer);
-                    }
-                }, (err) => {
-                    console.error('tasks sync error:', err);
-                    lastFirestoreError = err?.message || String(err);
-                    updateSyncIndicator('error');
-                });
-
-                const unsubLogs = onSnapshot(roCol('activity_logs'), (snap) => {
-                    applyLogsSnapshot(snap);
-                }, (err) => console.warn('activity_logs sync notice:', err));
-
-                firestoreUnsubscribers.push(unsubProjects, unsubTasks, unsubLogs);
-
-                // Kéo chủ động 1 lần ngay khi khởi chạy để đảm bảo có dữ liệu tức thì (kể cả khi onSnapshot bị trễ)
-                setTimeout(() => {
-                    if (!hasCompletedInitialSync || state.projects.length === 0) {
-                        syncRoomOpsFromServer(false);
-                    }
-                }, 1200);
-            } catch (err) {
-                console.warn('Firestore realtime sync warning:', err);
-                lastFirestoreError = err?.message || String(err);
-                updateSyncIndicator('error');
-                syncRoomOpsFromServer(false);
+                setTimeout(setupListeners, 150);
+            } else {
+                setupListeners();
             }
         }
 
         function handleRoomOpsResumeSync() {
-            if (!navigator.onLine) return;
-            // Không cắt listener khi mới khởi động chưa xong lần đồng bộ đầu tiên
+            if (!navigator.onLine) {
+                updateSyncIndicator('offline');
+                return;
+            }
+            const now = Date.now();
+            // Chống gọi dồn dập khi focus + visibilitychange + postMessage bắn liên tiếp
+            if (now - lastResumeTriggerTs < 4000) return;
+            lastResumeTriggerTs = now;
+
             if (!hasCompletedInitialSync) {
                 syncRoomOpsFromServer(false);
                 return;
             }
-            const staleMs = Date.now() - lastServerSyncTs;
-            if (staleMs > 25000) {
+
+            // Chỉ tạo lại listener khi thực sự bị mất kết nối hoặc đổi cơ sở; KHÔNG cắt listener đang khỏe!
+            if (firestoreUnsubscribers.length === 0 || !realtimeHealthy || activeListenersSiteId !== currentSiteId) {
                 (db ? enableNetwork(db).catch(() => {}) : Promise.resolve()).finally(() => {
                     initFirestoreRealtimeSync(true);
-                    syncRoomOpsFromServer(false);
+                    syncRoomOpsFromServer(false, { silent: true });
                 });
-            } else if (staleMs > 5000) {
-                syncRoomOpsFromServer(false);
+                return;
+            }
+
+            // Listener đang khỏe -> nếu đã lâu chưa kéo mới (> 60 giây), chỉ làm mới âm thầm không ngắt stream
+            if (now - lastServerSyncTs > 60000) {
+                syncRoomOpsFromServer(false, { silent: true });
             }
         }
 
+        window.addEventListener('offline', () => {
+            realtimeHealthy = false;
+            updateSyncIndicator('offline');
+        });
+
         window.addEventListener('online', () => {
+            consecutiveSyncErrors = 0;
+            if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
             (db ? enableNetwork(db).catch(() => {}) : Promise.resolve()).finally(() => {
                 initFirestoreRealtimeSync(true);
-                syncRoomOpsFromServer(false);
+                syncRoomOpsFromServer(false, { silent: false });
             });
         });
 
@@ -7186,8 +7295,7 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
 
         window.addEventListener('pageshow', (e) => {
             if (e.persisted) {
-                initFirestoreRealtimeSync(true);
-                syncRoomOpsFromServer(false);
+                handleRoomOpsResumeSync();
             }
         });
 
