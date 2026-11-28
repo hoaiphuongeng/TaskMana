@@ -518,7 +518,7 @@
                     if (Array.isArray(parsed)) return parsed;
                 }
             } catch (e) {}
-            return getSampleInspections();
+            return [];
         }
 
         async function saveItemToCloud(item) {
@@ -541,32 +541,45 @@
             }
         }
 
+        let kdIsCloudLoading = false;
         function initFirestoreSync() {
             const pill = document.getElementById('sync-status-pill');
             if (!db) {
+                kdIsCloudLoading = false;
                 if (pill) pill.textContent = 'Offline Local';
+                renderInspections();
                 return;
             }
             if (typeof kdFirestoreUnsub === 'function') {
                 try { kdFirestoreUnsub(); } catch (e) {}
                 kdFirestoreUnsub = null;
             }
-            kdFirestoreUnsub = kdCol().onSnapshot(snap => {
+            kdIsCloudLoading = inspections.length === 0;
+            if (pill) pill.textContent = 'Đang đồng bộ...';
+            renderInspections();
+
+            kdFirestoreUnsub = kdCol().onSnapshot({ includeMetadataChanges: true }, snap => {
+                const isFromServer = !snap.metadata.fromCache;
                 if (!snap.empty) {
                     const list = [];
                     snap.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
                     inspections = list;
+                    kdIsCloudLoading = false;
                     saveLocal();
                     renderInspections();
-                } else if (!snap.metadata.fromCache && inspections.length === 0) {
-                    inspections = getSampleInspections();
+                } else if (isFromServer) {
+                    // Server xác nhận cơ sở hiện tại chưa có thiết bị nào -> giữ danh sách trống, không tự nạp dữ liệu mẫu
+                    inspections = [];
+                    kdIsCloudLoading = false;
                     saveLocal();
                     renderInspections();
                 }
-                if (pill) pill.textContent = 'Cloud Sync';
+                if (pill) pill.textContent = isFromServer ? 'Cloud Sync' : 'Cache Sync';
             }, err => {
+                kdIsCloudLoading = false;
                 console.warn('Firestore sync fallback:', err.message || err);
                 if (pill) pill.textContent = 'Local Mode';
+                renderInspections();
             });
         }
 
@@ -673,10 +686,26 @@
 
             const grid = document.getElementById('inspections-grid');
             if (filtered.length === 0) {
-                grid.innerHTML = `<div class="col-span-full crisp-card rounded-2xl p-10 text-center space-y-2">
-                    <i class="fa-solid fa-folder-open text-3xl text-slate-400 dark:text-slate-500"></i>
-                    <p class="text-sm font-bold text-slate-700 dark:text-slate-200">Không có thiết bị kiểm định nào khớp bộ lọc.</p>
-                </div>`;
+                if (kdIsCloudLoading && inspections.length === 0) {
+                    grid.innerHTML = `<div class="col-span-full crisp-card rounded-2xl p-10 text-center space-y-2">
+                        <i class="fa-solid fa-spinner fa-spin text-2xl text-indigo-600 dark:text-indigo-400"></i>
+                        <p class="text-sm font-bold text-slate-700 dark:text-slate-200">Đang đồng bộ danh sách kiểm định từ Cloud...</p>
+                    </div>`;
+                } else if (inspections.length === 0) {
+                    grid.innerHTML = `<div class="col-span-full crisp-card rounded-2xl p-10 text-center space-y-3">
+                        <i class="fa-solid fa-clipboard-list text-3xl text-slate-400 dark:text-slate-500"></i>
+                        <p class="text-sm font-bold text-slate-700 dark:text-slate-200">Chưa có thiết bị kiểm định nào tại cơ sở này.</p>
+                        ${admin ? `<div class="flex flex-wrap items-center justify-center gap-2 pt-1">
+                            <button type="button" onclick="openInspectionModal('create')" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold cursor-pointer"><i class="fa-solid fa-plus mr-1.5"></i>Thêm thiết bị mới</button>
+                            <button type="button" onclick="seedSampleInspections()" class="px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 text-xs font-bold cursor-pointer"><i class="fa-solid fa-wand-magic-sparkles mr-1.5 text-indigo-500"></i>Nạp 6 thiết bị mẫu</button>
+                        </div>` : ''}
+                    </div>`;
+                } else {
+                    grid.innerHTML = `<div class="col-span-full crisp-card rounded-2xl p-10 text-center space-y-2">
+                        <i class="fa-solid fa-folder-open text-3xl text-slate-400 dark:text-slate-500"></i>
+                        <p class="text-sm font-bold text-slate-700 dark:text-slate-200">Không có thiết bị kiểm định nào khớp bộ lọc.</p>
+                    </div>`;
+                }
                 return;
             }
 
@@ -1020,7 +1049,7 @@
                         currentSiteId = nextSiteId;
                         currentSiteName = nextSiteName;
                         if (siteChanged) {
-                            inspections = currentSiteId === DEFAULT_SITE_ID ? loadLocal() : [];
+                            inspections = loadLocal();
                             initFirestoreSync();
                         }
                     }
