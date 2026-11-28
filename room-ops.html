@@ -2337,7 +2337,19 @@
                 staffSelect.innerHTML = state.staffMembers.map(s =>
                     `<option value="${s.name}">${s.name} (${s.dept})</option>`
                 ).join('');
-                if (state.staffMembers.some(s => s.name === currentStaff)) staffSelect.value = currentStaff;
+                const authUser = state.authenticatedUser;
+                const isAdmin = Boolean(state.adminAuthenticated || (authUser && authUser.role === 'admin'));
+                if (authUser && !isAdmin && state.staffMembers.some(s => s.name === authUser.name)) {
+                    staffSelect.value = authUser.name;
+                    staffSelect.disabled = true;
+                } else {
+                    staffSelect.disabled = false;
+                    if (state.staffMembers.some(s => s.name === currentStaff)) {
+                        staffSelect.value = currentStaff;
+                    } else if (authUser && state.staffMembers.some(s => s.name === authUser.name)) {
+                        staffSelect.value = authUser.name;
+                    }
+                }
             }
 
             const projSelect = document.getElementById('staffProjectSelect');
@@ -7807,6 +7819,10 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
             window.addEventListener('message', (event) => {
                 const msg = event.data;
                 if (!msg) return;
+                if (msg.type === 'TASKMANA_RESUME_SYNC') {
+                    handleRoomOpsResumeSync();
+                    return;
+                }
                 if (msg.type === 'TASKMANA_MODULE_ACTION') {
                     if (msg.action === 'search') {
                         openRoomOpsQuickSearch();
@@ -7863,24 +7879,31 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                 if (!tmUser) {
                     state.adminAuthenticated = false;
                     state.authenticatedUser = null;
+                    window.__roomOpsInitialSynced = false;
+                    window.__roomOpsLastUserId = '';
+                    if (staffSelect) staffSelect.disabled = false;
                     if (roleSwitcher) roleSwitcher.classList.add('hidden');
                     switchRole('staff');
                     return;
                 }
 
+                const userChanged = String(window.__roomOpsLastUserId || '') !== String(tmUser.id || tmUser.username || tmUser.name || '');
                 const isAdmin = tmUser.role === 'admin';
                 state.adminAuthenticated = isAdmin;
                 state.authenticatedUser = tmUser;
+                window.__roomOpsLastUserId = String(tmUser.id || tmUser.username || tmUser.name || '');
 
-                if (staffSelect && state.staffMembers.some(s => s.name === tmUser.name)) {
-                    staffSelect.value = tmUser.name;
+                if (staffSelect) {
                     staffSelect.disabled = !isAdmin;
+                    if (state.staffMembers.some(s => s.name === tmUser.name)) {
+                        staffSelect.value = tmUser.name;
+                    }
                 }
 
                 if (isAdmin) {
                     if (roleSwitcher) roleSwitcher.classList.remove('hidden');
                     document.getElementById('btnRoleDeputy')?.classList.add('hidden');
-                    if (!window.__roomOpsInitialSynced) {
+                    if (!window.__roomOpsInitialSynced || userChanged) {
                         switchRole('admin');
                     } else {
                         updateAdminDashboard();
