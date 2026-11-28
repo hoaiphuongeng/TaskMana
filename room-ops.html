@@ -357,7 +357,7 @@
                     </div>
                     <div>
                         <h1 class="font-extrabold text-base tracking-tight text-gray-900 leading-none">RoomOps <span class="text-blue-600">Pro</span></h1>
-                        <p class="text-[11px] font-medium text-gray-500 mt-0.5">198 Phòng & Hệ Thống Lan Can • Ocean & Garden Wing</p>
+                        <p id="headerPropertySubtitle" class="text-[11px] font-medium text-gray-500 mt-0.5">198 Phòng & Hệ Thống Lan Can • Ocean & Garden Wing</p>
                     </div>
                 </div>
                 <div id="syncBadgeMobile" onclick="syncRoomOpsFromServer(true)" title="Bấm để đồng bộ lại dữ liệu từ Firestore" class="flex md:hidden items-center gap-1.5 bg-emerald-500/10 text-emerald-700 px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition">
@@ -400,9 +400,13 @@
             <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
                     <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">Tổng Quan Điều Hành</h2>
-                    <p class="text-xs sm:text-sm text-gray-500 mt-0.5">Theo dõi tiến độ thực tế 198 phòng & hệ thống lan can (Ocean Wing & Garden Wing)</p>
+                    <p id="adminPropertySubtitle" class="text-xs sm:text-sm text-gray-500 mt-0.5">Theo dõi tiến độ thực tế 198 phòng & hệ thống lan can (Ocean Wing & Garden Wing)</p>
                 </div>
                 <div class="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
+                    <button onclick="openPropertyConfigModal()" class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white hover:bg-indigo-50 text-indigo-700 font-semibold text-xs sm:text-sm border border-indigo-200/90 shadow-ios transition">
+                        <i data-lucide="building-2" class="w-4 h-4 text-indigo-600"></i>
+                        <span>Cấu Hình Phòng & LC</span>
+                    </button>
                     <button onclick="openAdminSettingsModal()" class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white hover:bg-gray-50 text-gray-700 font-semibold text-xs sm:text-sm border border-gray-200/80 shadow-ios transition">
                         <i data-lucide="settings" class="w-4 h-4 text-indigo-600"></i>
                         <span>Cài Đặt Quản Trị</span>
@@ -478,16 +482,16 @@
             </div>
 
             <!-- Wing Summary Comparison -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                <div class="glass rounded-2xl p-4 sm:p-5 shadow-ios border-l-4 border-l-sky-500">
+            <div id="wingSummaryGrid" class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                <div id="wingCard0" class="glass rounded-2xl p-4 sm:p-5 shadow-ios border-l-4 border-l-sky-500">
                     <div class="flex items-center justify-between mb-2">
                         <div class="flex items-center gap-2.5">
                             <div class="w-8 h-8 rounded-xl bg-sky-500/10 text-sky-600 flex items-center justify-center">
                                 <i data-lucide="waves" class="w-4 h-4"></i>
                             </div>
                             <div>
-                                <h3 class="font-bold text-sm text-gray-900">Khu Ocean Wing</h3>
-                                <p class="text-[11px] text-gray-500">98 phòng (T1–T3: 26P • T4: 20P) & Lan can T2–T4</p>
+                                <h3 id="wingCard0Title" class="font-bold text-sm text-gray-900">Khu Ocean Wing</h3>
+                                <p id="wingCard0Sub" class="text-[11px] text-gray-500">98 phòng (T1–T3: 26P • T4: 20P) & Lan can T2–T4</p>
                             </div>
                         </div>
                         <span id="oceanWingPct" class="text-lg font-extrabold text-sky-600">0%</span>
@@ -501,15 +505,15 @@
                     </div>
                 </div>
 
-                <div class="glass rounded-2xl p-4 sm:p-5 shadow-ios border-l-4 border-l-emerald-500">
+                <div id="wingCard1" class="glass rounded-2xl p-4 sm:p-5 shadow-ios border-l-4 border-l-emerald-500">
                     <div class="flex items-center justify-between mb-2">
                         <div class="flex items-center gap-2.5">
                             <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
                                 <i data-lucide="trees" class="w-4 h-4"></i>
                             </div>
                             <div>
-                                <h3 class="font-bold text-sm text-gray-900">Khu Garden Wing</h3>
-                                <p class="text-[11px] text-gray-500">100 phòng (T1–T3: 26P • T4: 22P) & Lan can T2–T4</p>
+                                <h3 id="wingCard1Title" class="font-bold text-sm text-gray-900">Khu Garden Wing</h3>
+                                <p id="wingCard1Sub" class="text-[11px] text-gray-500">100 phòng (T1–T3: 26P • T4: 22P) & Lan can T2–T4</p>
                             </div>
                         </div>
                         <span id="gardenWingPct" class="text-lg font-extrabold text-emerald-600">0%</span>
@@ -529,8 +533,8 @@
                 <div class="glass rounded-2xl p-5 shadow-ios lg:col-span-2 flex flex-col">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                         <div>
-                            <h3 class="font-bold text-base text-gray-900">So Sánh Tiến Độ Ocean Wing & Garden Wing Theo Tầng</h3>
-                            <p class="text-xs text-gray-500">Tỷ lệ hoàn thành công việc từ Tầng 1 đến Tầng 4</p>
+                            <h3 id="floorBarChartTitle" class="font-bold text-base text-gray-900">So Sánh Tiến Độ Ocean Wing & Garden Wing Theo Tầng</h3>
+                            <p id="floorBarChartSubtitle" class="text-xs text-gray-500">Tỷ lệ hoàn thành công việc từ Tầng 1 đến Tầng 4</p>
                         </div>
                         <select id="adminChartProjectFilter" onchange="updateAdminDashboard()" class="text-xs font-medium bg-white border border-gray-200 rounded-xl px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="ALL">Tất cả dự án</option>
@@ -650,7 +654,7 @@
             <!-- Filter Bar -->
             <div id="staffFilterBar" class="glass rounded-2xl p-3.5 shadow-ios space-y-3 transition-all">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div class="grid grid-cols-3 gap-1.5 bg-gray-100/90 p-1 rounded-xl flex-1">
+                    <div id="staffWingFilterGroup" class="grid grid-cols-3 gap-1.5 bg-gray-100/90 p-1 rounded-xl flex-1">
                         <button onclick="setStaffWingFilter('ALL')" data-wing="ALL" class="wing-pill py-1.5 px-2 rounded-lg text-xs font-bold transition bg-white text-gray-900 shadow-2xs">
                             Tất cả 2 Khu
                         </button>
@@ -693,7 +697,7 @@
                 </div>
 
                 <!-- Floor Pills -->
-                <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                <div id="staffFloorFilterGroup" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
                     <button onclick="setStaffFloorFilter('ALL')" data-floor="ALL" class="floor-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition bg-gray-900 text-white">Tất cả tầng</button>
                     <button onclick="setStaffFloorFilter(1)" id="staffFloorBtn1" data-floor="1" class="floor-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition bg-white text-gray-600 hover:bg-gray-100">Tầng 1</button>
                     <button onclick="setStaffFloorFilter(2)" data-floor="2" class="floor-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition bg-white text-gray-600 hover:bg-gray-100">Tầng 2</button>
@@ -834,7 +838,7 @@
                 <div class="bg-gray-100 p-1.5 rounded-2xl grid grid-cols-2 gap-2">
                     <button type="button" id="btnTypeRoom" onclick="setProjectFormTargetType('ROOM')" class="py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 bg-white text-blue-600 shadow-xs transition">
                         <i data-lucide="bed-double" class="w-4 h-4"></i>
-                        <span>Dự Án Phòng Khách (198 Phòng)</span>
+                        <span id="projTypeRoomLabel">Dự Án Phòng Khách (198 Phòng)</span>
                     </button>
                     <button type="button" id="btnTypeRailing" onclick="setProjectFormTargetType('RAILING')" class="py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 text-gray-600 hover:text-gray-900 transition">
                         <i data-lucide="fence" class="w-4 h-4"></i>
@@ -903,13 +907,13 @@
 
                     <!-- Quick Selection Toolbar -->
                     <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-200/70">
-                        <div class="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-gray-200">
+                        <div id="pickerWingTabs" class="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-gray-200">
                             <button type="button" onclick="setPickerWingFilter('ALL')" data-pwing="ALL" class="picker-wing-tab px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-900 text-white">Cả 2 Khu</button>
                             <button type="button" onclick="setPickerWingFilter('Ocean Wing')" data-pwing="Ocean Wing" class="picker-wing-tab px-2.5 py-1 rounded-lg text-xs font-semibold text-gray-600">Ocean Wing</button>
                             <button type="button" onclick="setPickerWingFilter('Garden Wing')" data-pwing="Garden Wing" class="picker-wing-tab px-2.5 py-1 rounded-lg text-xs font-semibold text-gray-600">Garden Wing</button>
                         </div>
 
-                        <div class="flex flex-wrap items-center gap-1.5">
+                        <div id="pickerWingQuickSelect" class="flex flex-wrap items-center gap-1.5">
                             <button type="button" onclick="toggleSelectEntireWing('Ocean Wing')" class="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-semibold">+/- Cả Ocean Wing</button>
                             <button type="button" onclick="toggleSelectEntireWing('Garden Wing')" class="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold">+/- Cả Garden Wing</button>
                         </div>
@@ -1217,39 +1221,120 @@
         }
 
         // ---------------------------------------------------------------------
-        // 1. REAL HOTEL ROOMS (198 Rooms) & ARCHITECTURAL RAILINGS (Floors 2-4)
+        // 1. DYNAMIC HOTEL ROOMS & ARCHITECTURAL RAILINGS (MULTI-SITE CONFIGURABLE)
         // ---------------------------------------------------------------------
-        const REAL_HOTEL_DATA = {
-            'Ocean Wing': {
-                1: ['101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111', '112', '113', '114', '115', '116', '117', '118', '119', '120', '121', '123', '125', '127', '129', '131'],
-                2: ['201', '202', '203', '204', '205', '206', '207', '208', '209', '210', '211', '212', '213', '214', '215', '216', '217', '218', '219', '220', '221', '223', '225', '227', '229', '231'],
-                3: ['301', '302', '303', '304', '305', '306', '307', '308', '309', '310', '311', '312', '313', '314', '315', '316', '317', '318', '319', '320', '321', '323', '325', '327', '329', '331'],
-                4: ['401', '405', '406', '407', '408', '409', '410', '411', '412', '413', '414', '416', '417', '418', '420', '421', '423', '425', '427', '429']
-            },
-            'Garden Wing': {
-                1: ['132', '133', '134', '135', '136', '137', '138', '139', '140', '141', '142', '143', '144', '145', '146', '147', '148', '149', '150', '151', '153', '155', '157', '159', '161', '163'],
-                2: ['232', '233', '234', '235', '236', '237', '238', '239', '240', '241', '242', '243', '244', '245', '246', '247', '248', '249', '250', '251', '253', '255', '257', '259', '261', '263'],
-                3: ['332', '333', '334', '335', '336', '337', '338', '339', '340', '341', '342', '343', '344', '345', '346', '347', '348', '349', '350', '351', '353', '355', '357', '359', '361', '363'],
-                4: ['433', '435', '436', '437', '438', '439', '440', '441', '442', '443', '444', '445', '446', '447', '448', '449', '450', '453', '455', '457', '459', '461']
-            }
+        const FURAMA_DEFAULT_PROPERTY_CONFIG = {
+            wings: [
+                {
+                    name: 'Ocean Wing',
+                    code: 'OW',
+                    floors: {
+                        1: ['101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111', '112', '113', '114', '115', '116', '117', '118', '119', '120', '121', '123', '125', '127', '129', '131'],
+                        2: ['201', '202', '203', '204', '205', '206', '207', '208', '209', '210', '211', '212', '213', '214', '215', '216', '217', '218', '219', '220', '221', '223', '225', '227', '229', '231'],
+                        3: ['301', '302', '303', '304', '305', '306', '307', '308', '309', '310', '311', '312', '313', '314', '315', '316', '317', '318', '319', '320', '321', '323', '325', '327', '329', '331'],
+                        4: ['401', '405', '406', '407', '408', '409', '410', '411', '412', '413', '414', '416', '417', '418', '420', '421', '423', '425', '427', '429']
+                    }
+                },
+                {
+                    name: 'Garden Wing',
+                    code: 'GW',
+                    floors: {
+                        1: ['132', '133', '134', '135', '136', '137', '138', '139', '140', '141', '142', '143', '144', '145', '146', '147', '148', '149', '150', '151', '153', '155', '157', '159', '161', '163'],
+                        2: ['232', '233', '234', '235', '236', '237', '238', '239', '240', '241', '242', '243', '244', '245', '246', '247', '248', '249', '250', '251', '253', '255', '257', '259', '261', '263'],
+                        3: ['332', '333', '334', '335', '336', '337', '338', '339', '340', '341', '342', '343', '344', '345', '346', '347', '348', '349', '350', '351', '353', '355', '357', '359', '361', '363'],
+                        4: ['433', '435', '436', '437', '438', '439', '440', '441', '442', '443', '444', '445', '446', '447', '448', '449', '450', '453', '455', '457', '459', '461']
+                    }
+                }
+            ],
+            railingEnabled: true,
+            railingFloors: [2, 3, 4],
+            railingIncludeBalcony: true,
+            railingIncludeEntrance: true,
+            railingIncludeCorridor: true,
+            railingIncludeStairs: true
         };
 
+        let activePropertyConfig = JSON.parse(JSON.stringify(FURAMA_DEFAULT_PROPERTY_CONFIG));
+        const REAL_HOTEL_DATA = {};
         const ALL_ROOMS = [];
         const ROOM_META_MAP = {};
-
-        ['Ocean Wing', 'Garden Wing'].forEach(wing => {
-            [1, 2, 3, 4].forEach(floor => {
-                REAL_HOTEL_DATA[wing][floor].forEach(roomId => {
-                    const obj = { id: roomId, floor, wing, unitType: 'ROOM', shortCode: roomId, label: `Phòng ${roomId}` };
-                    ALL_ROOMS.push(obj);
-                    ROOM_META_MAP[roomId] = obj;
-                });
-            });
-        });
-
         const ALL_RAILINGS = [];
         const RAILING_META_MAP = {};
         const RAILING_BLUEPRINTS = {};
+
+        function getActiveWings() {
+            return (activePropertyConfig?.wings || []).map(w => w.name);
+        }
+        function getWingCode(wingName) {
+            const idx = (activePropertyConfig?.wings || []).findIndex(w => w.name === wingName);
+            if (idx !== -1 && activePropertyConfig.wings[idx].code) return activePropertyConfig.wings[idx].code;
+            return idx <= 0 ? 'OW' : 'GW';
+        }
+        function isFirstWing(wingName) {
+            const wings = getActiveWings();
+            return wings.length === 0 || wingName === wings[0];
+        }
+        function getActiveRoomFloors() {
+            const set = new Set();
+            (activePropertyConfig?.wings || []).forEach(w => {
+                Object.keys(w.floors || {}).forEach(k => {
+                    const num = parseInt(k, 10);
+                    if (!isNaN(num) && num >= 1) set.add(num);
+                });
+            });
+            const arr = Array.from(set).sort((a, b) => a - b);
+            return arr.length ? arr : [1, 2, 3, 4];
+        }
+        function getActiveRailingFloors() {
+            if (!activePropertyConfig || activePropertyConfig.railingEnabled === false) return [];
+            const roomFloors = new Set(getActiveRoomFloors());
+            const list = Array.isArray(activePropertyConfig.railingFloors)
+                ? activePropertyConfig.railingFloors.map(n => parseInt(n, 10)).filter(n => !isNaN(n) && roomFloors.has(n))
+                : [];
+            return Array.from(new Set(list)).sort((a, b) => a - b);
+        }
+
+        function normalizePropertyConfig(rawCfg) {
+            if (!rawCfg || !Array.isArray(rawCfg.wings) || rawCfg.wings.length === 0) {
+                return JSON.parse(JSON.stringify(FURAMA_DEFAULT_PROPERTY_CONFIG));
+            }
+            const wings = rawCfg.wings.slice(0, 2).map((w, idx) => {
+                const name = String(w?.name || (idx === 0 ? 'Khu A' : 'Khu B')).trim() || (idx === 0 ? 'Khu A' : 'Khu B');
+                const code = String(w?.code || (idx === 0 ? 'W1' : 'W2')).trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4) || (idx === 0 ? 'W1' : 'W2');
+                const floors = {};
+                Object.entries(w?.floors || {}).forEach(([fk, list]) => {
+                    const fNum = parseInt(fk, 10);
+                    if (isNaN(fNum) || fNum < 1) return;
+                    const cleaned = Array.isArray(list)
+                        ? Array.from(new Set(list.map(x => String(x || '').trim()).filter(Boolean)))
+                        : [];
+                    floors[fNum] = cleaned;
+                });
+                if (Object.keys(floors).length === 0) floors[1] = [];
+                return { name, code, floors };
+            });
+            if (wings.length === 2 && wings[0].name === wings[1].name) {
+                wings[1].name = `${wings[1].name} 2`;
+            }
+            const allFloors = new Set();
+            wings.forEach(w => Object.keys(w.floors).forEach(k => allFloors.add(parseInt(k, 10))));
+            const railingEnabled = rawCfg.railingEnabled !== false;
+            let railingFloors = Array.isArray(rawCfg.railingFloors)
+                ? rawCfg.railingFloors.map(n => parseInt(n, 10)).filter(n => !isNaN(n) && allFloors.has(n))
+                : Array.from(allFloors).filter(n => n >= 2);
+            railingFloors = Array.from(new Set(railingFloors)).sort((a, b) => a - b);
+
+            return {
+                wings,
+                railingEnabled,
+                railingFloors,
+                railingIncludeBalcony: rawCfg.railingIncludeBalcony !== false,
+                railingIncludeEntrance: rawCfg.railingIncludeEntrance !== false,
+                railingIncludeCorridor: rawCfg.railingIncludeCorridor !== false,
+                railingIncludeStairs: rawCfg.railingIncludeStairs !== false,
+                updatedAt: rawCfg.updatedAt || Date.now()
+            };
+        }
 
         // Cluster pattern for the "2 double rooms + 1 single room" axis ([01|03], [05], [07|09]...)
         function groupRoomsTwoDoubleOneSingle(roomsList) {
@@ -1283,18 +1368,27 @@
         }
 
         function buildHotelRailingArchitecture() {
-            ['Ocean Wing', 'Garden Wing'].forEach(wing => {
-                const wingCode = wing === 'Ocean Wing' ? 'OW' : 'GW';
-                const isOcean = wing === 'Ocean Wing';
+            ALL_RAILINGS.length = 0;
+            Object.keys(RAILING_META_MAP).forEach(k => delete RAILING_META_MAP[k]);
+            Object.keys(RAILING_BLUEPRINTS).forEach(k => delete RAILING_BLUEPRINTS[k]);
 
-                [2, 3, 4].forEach(floor => {
-                    const floorRooms = REAL_HOTEL_DATA[wing][floor];
+            const railingFloors = getActiveRailingFloors();
+            if (!railingFloors.length) return;
+
+            const incBalcony = activePropertyConfig.railingIncludeBalcony !== false;
+            const incEntrance = activePropertyConfig.railingIncludeEntrance !== false;
+            const incCorridor = activePropertyConfig.railingIncludeCorridor !== false;
+            const incStairs = activePropertyConfig.railingIncludeStairs !== false;
+
+            getActiveWings().forEach((wing, wIdx) => {
+                const wingCode = getWingCode(wing);
+                const isOcean = wIdx === 0;
+
+                railingFloors.forEach(floor => {
+                    const floorRooms = REAL_HOTEL_DATA[wing]?.[floor] || [];
                     const oddRooms = floorRooms.filter(r => parseInt(r, 10) % 2 === 1);
                     const evenRooms = floorRooms.filter(r => parseInt(r, 10) % 2 === 0);
 
-                    // Bố cục kiến trúc đối xứng gương (Mirrored) giữa Ocean Wing và Garden Wing:
-                    // - Ocean Wing: Dãy Trái = Cặp phòng đôi Chẵn (02|04, 06|08...), Dãy Phải = 2 đôi 1 đơn Lẻ (01|03, 05, 07|09...)
-                    // - Garden Wing (Đối xứng): Dãy Trái (Ngoài) = 2 đôi 1 đơn Lẻ (33|35, 37, 39|41...), Dãy Phải = Cặp phòng đôi Chẵn (32|34, 36|38...)
                     const rawLeftClusters = isOcean
                         ? groupRoomsPureDouble(evenRooms)
                         : groupRoomsTwoDoubleOneSingle(oddRooms);
@@ -1305,8 +1399,7 @@
 
                     const attachClusterBalconies = (rawClusters, sideKey, sideLabel) => {
                         return rawClusters.map((c, idx) => {
-                            // 1 single rear balcony railing per room -> Named: "Sau + số phòng"
-                            const balconies = c.rooms.map(roomId => {
+                            const balconies = incBalcony ? c.rooms.map(roomId => {
                                 const seg = {
                                     id: `LC_${wingCode}_T${floor}_BC_${roomId}`,
                                     wing,
@@ -1320,40 +1413,33 @@
                                 ALL_RAILINGS.push(seg);
                                 RAILING_META_MAP[seg.id] = seg;
                                 return seg;
-                            });
+                            }) : [];
 
                             const topRoom = c.rooms[0];
                             const botRoom = c.rooms[c.rooms.length - 1];
                             const isSingleRoom = c.rooms.length === 1;
                             const roomRangeText = !isSingleRoom ? `${topRoom}|${botRoom}` : `${topRoom}`;
 
-                            // 2 horizontal entrance branch railings turning into the cluster doorway -> Named: "Trước + số phòng"
-                            const entTopShort = isSingleRoom ? `Trước ${topRoom} (T)` : `Trước ${topRoom}`;
-                            const entBotShort = isSingleRoom ? `Trước ${botRoom} (D)` : `Trước ${botRoom}`;
-
-                            const entTop = {
-                                id: `LC_${wingCode}_T${floor}_${sideKey}_C${idx + 1}_ENT_TOP`,
-                                wing,
-                                floor,
-                                side: sideKey,
-                                category: 'ENTRANCE_SIDE',
-                                roomRef: topRoom,
-                                shortCode: entTopShort,
-                                label: `Lan can ${entTopShort} (${sideLabel} • ${wing} - T${floor})`
-                            };
-                            const entBottom = {
-                                id: `LC_${wingCode}_T${floor}_${sideKey}_C${idx + 1}_ENT_BOT`,
-                                wing,
-                                floor,
-                                side: sideKey,
-                                category: 'ENTRANCE_SIDE',
-                                roomRef: botRoom,
-                                shortCode: entBotShort,
-                                label: `Lan can ${entBotShort} (${sideLabel} • ${wing} - T${floor})`
-                            };
-                            ALL_RAILINGS.push(entTop, entBottom);
-                            RAILING_META_MAP[entTop.id] = entTop;
-                            RAILING_META_MAP[entBottom.id] = entBottom;
+                            let entTop = null, entBottom = null;
+                            if (incEntrance) {
+                                const entTopShort = isSingleRoom ? `Trước ${topRoom} (T)` : `Trước ${topRoom}`;
+                                const entBotShort = isSingleRoom ? `Trước ${botRoom} (D)` : `Trước ${botRoom}`;
+                                entTop = {
+                                    id: `LC_${wingCode}_T${floor}_${sideKey}_C${idx + 1}_ENT_TOP`,
+                                    wing, floor, side: sideKey, category: 'ENTRANCE_SIDE', roomRef: topRoom,
+                                    shortCode: entTopShort,
+                                    label: `Lan can ${entTopShort} (${sideLabel} • ${wing} - T${floor})`
+                                };
+                                entBottom = {
+                                    id: `LC_${wingCode}_T${floor}_${sideKey}_C${idx + 1}_ENT_BOT`,
+                                    wing, floor, side: sideKey, category: 'ENTRANCE_SIDE', roomRef: botRoom,
+                                    shortCode: entBotShort,
+                                    label: `Lan can ${entBotShort} (${sideLabel} • ${wing} - T${floor})`
+                                };
+                                ALL_RAILINGS.push(entTop, entBottom);
+                                RAILING_META_MAP[entTop.id] = entTop;
+                                RAILING_META_MAP[entBottom.id] = entBottom;
+                            }
 
                             return { ...c, balconies, entTop, entBottom, topRoom, botRoom, roomRangeText };
                         });
@@ -1362,17 +1448,12 @@
                     const leftClusters = attachClusterBalconies(rawLeftClusters, 'LEFT', 'Dãy Trái');
                     const rightClusters = attachClusterBalconies(rawRightClusters, 'RIGHT', 'Dãy Phải');
 
-                    // Corridor vertical runs between clusters -> Named: "Giữa Phòng + Phòng"
                     const buildCorridorBays = (clusters, sideKey, sideLabel) => {
                         const bays = [];
+                        if (!incCorridor || clusters.length === 0) return bays;
                         const createSingleBay = (baseId, shortBase, labelBase, isStairLink = false) => {
                             const seg = {
-                                id: baseId,
-                                wing,
-                                floor,
-                                side: sideKey,
-                                category: 'CORRIDOR_BAY',
-                                isStairLink,
+                                id: baseId, wing, floor, side: sideKey, category: 'CORRIDOR_BAY', isStairLink,
                                 shortCode: shortBase,
                                 label: `${labelBase} (${sideLabel} • ${wing} - T${floor})`
                             };
@@ -1380,38 +1461,14 @@
                             RAILING_META_MAP[seg.id] = seg;
                             return seg;
                         };
-
-                        if (clusters.length === 0) return bays;
-
-                        // Top run from North Stair / Top Entry to first room
-                        bays.push(createSingleBay(
-                            `LC_${wingCode}_T${floor}_${sideKey}_HL_N0`,
-                            `Giữa Thang-${clusters[0].topRoom}`,
-                            `Lan can Giữa Thang Bắc và P.${clusters[0].topRoom}`,
-                            true
-                        ));
-
-                        // Runs between consecutive clusters: "Giữa Phòng + Phòng"
+                        bays.push(createSingleBay(`LC_${wingCode}_T${floor}_${sideKey}_HL_N0`, `Giữa Thang-${clusters[0].topRoom}`, `Lan can Giữa Thang Bắc và P.${clusters[0].topRoom}`, true));
                         for (let c = 0; c < clusters.length - 1; c++) {
                             const curr = clusters[c];
                             const next = clusters[c + 1];
-                            bays.push(createSingleBay(
-                                `LC_${wingCode}_T${floor}_${sideKey}_HL_B${c + 1}`,
-                                `Giữa ${curr.botRoom}-${next.topRoom}`,
-                                `Lan can Giữa P.${curr.botRoom} và P.${next.topRoom}`,
-                                false
-                            ));
+                            bays.push(createSingleBay(`LC_${wingCode}_T${floor}_${sideKey}_HL_B${c + 1}`, `Giữa ${curr.botRoom}-${next.topRoom}`, `Lan can Giữa P.${curr.botRoom} và P.${next.topRoom}`, false));
                         }
-
-                        // Bottom run from Last Room to South Stair / End
                         const lastCluster = clusters[clusters.length - 1];
-                        bays.push(createSingleBay(
-                            `LC_${wingCode}_T${floor}_${sideKey}_HL_S99`,
-                            `Giữa ${lastCluster.botRoom}-Thang`,
-                            `Lan can Giữa P.${lastCluster.botRoom} và Cầu thang cuối`,
-                            true
-                        ));
-
+                        bays.push(createSingleBay(`LC_${wingCode}_T${floor}_${sideKey}_HL_S99`, `Giữa ${lastCluster.botRoom}-Thang`, `Lan can Giữa P.${lastCluster.botRoom} và Cầu thang cuối`, true));
                         return bays;
                     };
 
@@ -1419,13 +1476,10 @@
                     const rightBays = buildCorridorBays(rightClusters, 'RIGHT', 'Dãy Phải');
 
                     const makeStairSeg = (code, shortCode, label) => {
+                        if (!incStairs) return null;
                         const seg = {
                             id: `LC_${wingCode}_T${floor}_STAIR_${code}`,
-                            wing,
-                            floor,
-                            side: 'CENTER',
-                            category: 'STAIR_ZONE',
-                            shortCode,
+                            wing, floor, side: 'CENTER', category: 'STAIR_ZONE', shortCode,
                             label: `${label} (${wing} - T${floor})`
                         };
                         ALL_RAILINGS.push(seg);
@@ -1443,7 +1497,167 @@
                 });
             });
         }
-        buildHotelRailingArchitecture();
+
+        function syncPropertyUIControls() {
+            const wings = getActiveWings();
+            const floors = getActiveRoomFloors();
+            const rFloors = getActiveRailingFloors();
+            const totalRooms = ALL_ROOMS.length;
+            const totalRailings = ALL_RAILINGS.length;
+            const wingsLabel = wings.join(' & ');
+            const railSummary = rFloors.length ? `Lan can T${rFloors[0]}–T${rFloors[rFloors.length - 1]} (${totalRailings} đoạn)` : 'Không bật lan can';
+
+            const headerSub = document.getElementById('headerPropertySubtitle');
+            if (headerSub) headerSub.textContent = `${currentSiteName} • ${totalRooms} Phòng & ${railSummary} • ${wingsLabel}`;
+            const adminSub = document.getElementById('adminPropertySubtitle');
+            if (adminSub) adminSub.textContent = `Theo dõi tiến độ thực tế ${totalRooms} phòng & ${railSummary} (${wingsLabel})`;
+
+            const projRoomLbl = document.getElementById('projTypeRoomLabel');
+            if (projRoomLbl) projRoomLbl.textContent = `Dự Án Phòng Khách (${totalRooms} Phòng)`;
+
+            // Wing summary cards
+            const wingGrid = document.getElementById('wingSummaryGrid');
+            const card1 = document.getElementById('wingCard1');
+            if (wingGrid) wingGrid.className = wings.length === 1 ? 'grid grid-cols-1 gap-3 sm:gap-4' : 'grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4';
+            wings.forEach((wName, idx) => {
+                const titleEl = document.getElementById(`wingCard${idx}Title`);
+                const subEl = document.getElementById(`wingCard${idx}Sub`);
+                if (titleEl) titleEl.textContent = `Khu ${wName}`;
+                if (subEl) {
+                    const wRooms = ALL_ROOMS.filter(r => r.wing === wName).length;
+                    const floorBreakdown = floors.map(f => `T${f}: ${(REAL_HOTEL_DATA[wName]?.[f] || []).length}P`).join(' • ');
+                    const railTxt = rFloors.length ? ` & Lan can T${rFloors[0]}–T${rFloors[rFloors.length - 1]}` : '';
+                    subEl.textContent = `${wRooms} phòng (${floorBreakdown})${railTxt}`;
+                }
+            });
+            if (card1) card1.classList.toggle('hidden', wings.length < 2);
+
+            const chartTitle = document.getElementById('floorBarChartTitle');
+            if (chartTitle) chartTitle.textContent = `So Sánh Tiến Độ ${wingsLabel} Theo Tầng`;
+            const chartSub = document.getElementById('floorBarChartSubtitle');
+            if (chartSub && floors.length) chartSub.textContent = `Tỷ lệ hoàn thành công việc từ Tầng ${floors[0]} đến Tầng ${floors[floors.length - 1]}`;
+
+            // Staff Wing Filter Pills
+            const staffWingGroup = document.getElementById('staffWingFilterGroup');
+            if (staffWingGroup) {
+                if (typeof state !== 'undefined' && state.staffWingFilter !== 'ALL' && !wings.includes(state.staffWingFilter)) {
+                    state.staffWingFilter = 'ALL';
+                }
+                const curW = typeof state !== 'undefined' ? state.staffWingFilter : 'ALL';
+                staffWingGroup.className = wings.length === 1
+                    ? 'grid grid-cols-2 gap-1.5 bg-gray-100/90 p-1 rounded-xl flex-1'
+                    : 'grid grid-cols-3 gap-1.5 bg-gray-100/90 p-1 rounded-xl flex-1';
+                staffWingGroup.innerHTML =
+                    `<button onclick="setStaffWingFilter('ALL')" data-wing="ALL" class="wing-pill py-1.5 px-2 rounded-lg text-xs ${curW === 'ALL' ? 'font-bold bg-white text-gray-900 shadow-2xs' : 'font-semibold text-gray-600 hover:text-gray-900'} transition">Tất cả ${wings.length} Khu</button>` +
+                    wings.map((w, idx) => {
+                        const dot = idx === 0 ? 'bg-sky-500' : 'bg-emerald-500';
+                        const activeCls = curW === w ? 'font-bold bg-white text-gray-900 shadow-2xs' : 'font-semibold text-gray-600 hover:text-gray-900';
+                        return `<button onclick="setStaffWingFilter('${w.replace(/'/g, "\'")}')" data-wing="${w.replace(/"/g, '&quot;')}" class="wing-pill py-1.5 px-2 rounded-lg text-xs ${activeCls} transition flex items-center justify-center gap-1"><span class="w-2 h-2 rounded-full ${dot}"></span> ${w}</button>`;
+                    }).join('');
+            }
+
+            // Staff Floor Filter Pills
+            const staffFloorGroup = document.getElementById('staffFloorFilterGroup');
+            if (staffFloorGroup) {
+                const curF = typeof state !== 'undefined' ? String(state.staffFloorFilter) : 'ALL';
+                staffFloorGroup.innerHTML =
+                    `<button onclick="setStaffFloorFilter('ALL')" data-floor="ALL" class="floor-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${curF === 'ALL' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}">Tất cả tầng</button>` +
+                    floors.map(f => `<button onclick="setStaffFloorFilter(${f})" id="staffFloorBtn${f}" data-floor="${f}" class="floor-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${curF === String(f) ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}">Tầng ${f}</button>`).join('');
+            }
+
+            // Picker Wing Tabs & Quick Select
+            const pickerTabs = document.getElementById('pickerWingTabs');
+            if (pickerTabs) {
+                const curPW = typeof state !== 'undefined' ? state.pickerWingFilter : 'ALL';
+                pickerTabs.innerHTML =
+                    `<button type="button" onclick="setPickerWingFilter('ALL')" data-pwing="ALL" class="picker-wing-tab px-2.5 py-1 rounded-lg text-xs ${curPW === 'ALL' ? 'font-bold bg-gray-900 text-white' : 'font-semibold text-gray-600'}">Cả ${wings.length} Khu</button>` +
+                    wings.map(w => `<button type="button" onclick="setPickerWingFilter('${w.replace(/'/g, "\'")}')" data-pwing="${w.replace(/"/g, '&quot;')}" class="picker-wing-tab px-2.5 py-1 rounded-lg text-xs ${curPW === w ? 'font-bold bg-gray-900 text-white' : 'font-semibold text-gray-600'}">${w}</button>`).join('');
+            }
+            const pickerQuick = document.getElementById('pickerWingQuickSelect');
+            if (pickerQuick) {
+                pickerQuick.innerHTML = wings.map((w, idx) => {
+                    const cls = idx === 0
+                        ? 'bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200'
+                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200';
+                    return `<button type="button" onclick="toggleSelectEntireWing('${w.replace(/'/g, "\'")}')" class="px-2.5 py-1 rounded-lg ${cls} text-xs font-semibold">+/- Cả ${w}</button>`;
+                }).join('');
+            }
+        }
+
+        function applyPropertyConfig(rawCfg, { refreshUI = true } = {}) {
+            activePropertyConfig = normalizePropertyConfig(rawCfg);
+
+            Object.keys(REAL_HOTEL_DATA).forEach(k => delete REAL_HOTEL_DATA[k]);
+            ALL_ROOMS.length = 0;
+            Object.keys(ROOM_META_MAP).forEach(k => delete ROOM_META_MAP[k]);
+
+            activePropertyConfig.wings.forEach(w => {
+                REAL_HOTEL_DATA[w.name] = {};
+                Object.keys(w.floors || {}).map(Number).sort((a, b) => a - b).forEach(floor => {
+                    const rooms = Array.isArray(w.floors[floor]) ? [...w.floors[floor]] : [];
+                    REAL_HOTEL_DATA[w.name][floor] = rooms;
+                    rooms.forEach(roomId => {
+                        const obj = { id: roomId, floor, wing: w.name, unitType: 'ROOM', shortCode: roomId, label: `Phòng ${roomId}` };
+                        ALL_ROOMS.push(obj);
+                        ROOM_META_MAP[roomId] = obj;
+                    });
+                });
+            });
+
+            buildHotelRailingArchitecture();
+            if (refreshUI) {
+                syncPropertyUIControls();
+                if (typeof updateAdminDashboard === 'function') updateAdminDashboard();
+                if (typeof renderStaffView === 'function') renderStaffView();
+                if (document.getElementById('projectModalBackdrop')?.classList.contains('active') && typeof renderInteractivePickerMap === 'function') {
+                    renderInteractivePickerMap();
+                }
+            }
+        }
+
+        function loadPropertyConfigLocalCache() {
+            try {
+                const raw = localStorage.getItem(roLsKey('roomops_property_config_v1'));
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && Array.isArray(parsed.wings) && parsed.wings.length > 0) return parsed;
+                }
+            } catch (e) {}
+            return null;
+        }
+
+        async function loadPropertyConfigFromFirestore(fallbackConfig = null) {
+            const cached = loadPropertyConfigLocalCache();
+            if (cached) {
+                applyPropertyConfig(cached, { refreshUI: true });
+            } else if (fallbackConfig) {
+                applyPropertyConfig(fallbackConfig, { refreshUI: true });
+            } else {
+                applyPropertyConfig(FURAMA_DEFAULT_PROPERTY_CONFIG, { refreshUI: true });
+            }
+
+            if (!db) return;
+            try {
+                const snap = await getDoc(roDoc('site_settings', 'property_config'));
+                if (snap.exists()) {
+                    const data = snap.data();
+                    if (data && Array.isArray(data.wings) && data.wings.length > 0) {
+                        try { localStorage.setItem(roLsKey('roomops_property_config_v1'), JSON.stringify(data)); } catch (e) {}
+                        applyPropertyConfig(data, { refreshUI: true });
+                        return;
+                    }
+                } else if (fallbackConfig && Array.isArray(fallbackConfig.wings) && fallbackConfig.wings.length > 0) {
+                    const normalized = normalizePropertyConfig(fallbackConfig);
+                    try { localStorage.setItem(roLsKey('roomops_property_config_v1'), JSON.stringify(normalized)); } catch (e) {}
+                    await setDoc(roDoc('site_settings', 'property_config'), normalized, { merge: true }).catch(() => {});
+                    applyPropertyConfig(normalized, { refreshUI: true });
+                }
+            } catch (err) {
+                console.warn('loadPropertyConfigFromFirestore notice:', err?.message || err);
+            }
+        }
+
+        applyPropertyConfig(loadPropertyConfigLocalCache() || FURAMA_DEFAULT_PROPERTY_CONFIG, { refreshUI: false });
 
         function getUnitMeta(unitId) {
             return ROOM_META_MAP[unitId] || RAILING_META_MAP[unitId] || null;
@@ -1822,16 +2036,15 @@
 
         function calculateStats(filterProjectId = 'ALL') {
             let totalTasks = 0, done = 0, inProgress = 0, issue = 0, pending = 0;
-            const floorWingStats = {
-                1: { 'Ocean Wing': { total: 0, done: 0 }, 'Garden Wing': { total: 0, done: 0 } },
-                2: { 'Ocean Wing': { total: 0, done: 0 }, 'Garden Wing': { total: 0, done: 0 } },
-                3: { 'Ocean Wing': { total: 0, done: 0 }, 'Garden Wing': { total: 0, done: 0 } },
-                4: { 'Ocean Wing': { total: 0, done: 0 }, 'Garden Wing': { total: 0, done: 0 } }
-            };
-            const wingStats = {
-                'Ocean Wing': { total: 0, done: 0, issue: 0 },
-                'Garden Wing': { total: 0, done: 0, issue: 0 }
-            };
+            const activeWings = getActiveWings();
+            const activeFloors = getActiveRoomFloors();
+            const floorWingStats = {};
+            activeFloors.forEach(f => {
+                floorWingStats[f] = {};
+                activeWings.forEach(w => { floorWingStats[f][w] = { total: 0, done: 0 }; });
+            });
+            const wingStats = {};
+            activeWings.forEach(w => { wingStats[w] = { total: 0, done: 0, issue: 0 }; });
 
             const targetProjects = filterProjectId === 'ALL'
                 ? state.projects
@@ -1842,6 +2055,10 @@
                 (proj.targetRooms || []).forEach(unitId => {
                     const meta = getUnitMeta(unitId);
                     if (!meta) return;
+                    if (!floorWingStats[meta.floor]) floorWingStats[meta.floor] = {};
+                    if (!floorWingStats[meta.floor][meta.wing]) floorWingStats[meta.floor][meta.wing] = { total: 0, done: 0 };
+                    if (!wingStats[meta.wing]) wingStats[meta.wing] = { total: 0, done: 0, issue: 0 };
+
                     const task = state.tasks[`${proj.id}_${unitId}`];
                     const st = task ? task.status : 'Pending';
 
@@ -1890,14 +2107,17 @@
 
             const chartStats = calculateStats(filterSelect ? filterSelect.value : 'ALL');
 
-            const ow = chartStats.wingStats['Ocean Wing'];
+            const activeWings = getActiveWings();
+            const w0Name = activeWings[0];
+            const w1Name = activeWings[1];
+            const ow = (w0Name && chartStats.wingStats[w0Name]) || { total: 0, done: 0, issue: 0 };
             const owPct = ow.total > 0 ? Math.round((ow.done / ow.total) * 100) : 0;
             document.getElementById('oceanWingPct').textContent = `${owPct}%`;
             document.getElementById('oceanWingBar').style.width = `${owPct}%`;
             document.getElementById('oceanWingRatio').textContent = `${ow.done}/${ow.total}`;
             document.getElementById('oceanWingIssueText').textContent = `${ow.issue} sự cố`;
 
-            const gw = chartStats.wingStats['Garden Wing'];
+            const gw = (w1Name && chartStats.wingStats[w1Name]) || { total: 0, done: 0, issue: 0 };
             const gwPct = gw.total > 0 ? Math.round((gw.done / gw.total) * 100) : 0;
             document.getElementById('gardenWingPct').textContent = `${gwPct}%`;
             document.getElementById('gardenWingBar').style.width = `${gwPct}%`;
@@ -1917,29 +2137,28 @@
 
         function renderCharts(stats) {
             const barCtx = document.getElementById('floorBarChart').getContext('2d');
-            const oceanPercentages = [1, 2, 3, 4].map(f => {
-                const { total, done } = stats.floorWingStats[f]['Ocean Wing'];
-                return total > 0 ? Math.round((done / total) * 100) : 0;
-            });
-            const gardenPercentages = [1, 2, 3, 4].map(f => {
-                const { total, done } = stats.floorWingStats[f]['Garden Wing'];
-                return total > 0 ? Math.round((done / total) * 100) : 0;
-            });
+            const activeWings = getActiveWings();
+            const activeFloors = getActiveRoomFloors();
+            const labels = activeFloors.map(f => `Tầng ${f}`);
+            const palette = ['#0EA5E9', '#10B981'];
+            const datasets = activeWings.map((wName, idx) => ({
+                label: wName,
+                data: activeFloors.map(f => {
+                    const cell = stats.floorWingStats[f]?.[wName] || { total: 0, done: 0 };
+                    return cell.total > 0 ? Math.round((cell.done / cell.total) * 100) : 0;
+                }),
+                backgroundColor: palette[idx % palette.length],
+                borderRadius: 6
+            }));
 
             if (floorBarChartInstance) {
-                floorBarChartInstance.data.datasets[0].data = oceanPercentages;
-                floorBarChartInstance.data.datasets[1].data = gardenPercentages;
+                floorBarChartInstance.data.labels = labels;
+                floorBarChartInstance.data.datasets = datasets;
                 floorBarChartInstance.update();
             } else {
                 floorBarChartInstance = new Chart(barCtx, {
                     type: 'bar',
-                    data: {
-                        labels: ['Tầng 1', 'Tầng 2', 'Tầng 3', 'Tầng 4'],
-                        datasets: [
-                            { label: 'Ocean Wing', data: oceanPercentages, backgroundColor: '#0EA5E9', borderRadius: 6 },
-                            { label: 'Garden Wing', data: gardenPercentages, backgroundColor: '#10B981', borderRadius: 6 }
-                        ]
-                    },
+                    data: { labels, datasets },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
@@ -2241,7 +2460,7 @@
 
             const wing = canvas.dataset.wing;
             const floor = Number(canvas.dataset.floor);
-            const wingCode = wing === 'Ocean Wing' ? 'OW' : 'GW';
+            const wingCode = getWingCode(wing);
             let needsSave = false;
 
             rawList.forEach((seg, idx) => {
@@ -2717,7 +2936,7 @@
         function inferRoomLinkForRailingLine(editor, line, tool = 'draw', partIndex = 0, totalParts = 1) {
             const wing = editor.wing;
             const floor = Number(editor.floor);
-            const wingCode = wing === 'Ocean Wing' ? 'OW' : 'GW';
+            const wingCode = getWingCode(wing);
             const midX = (Number(line.x1) + Number(line.x2)) / 2;
             const midY = (Number(line.y1) + Number(line.y2)) / 2;
             const vertical = Math.abs(line.y2 - line.y1) > Math.abs(line.x2 - line.x1);
@@ -3015,7 +3234,7 @@
                     if (valid) {
                         const stamp = `${Date.now()}_${Math.floor(Math.random() * 10000)}`;
                         const proj = getProjectById(editor.projectId);
-                        const wingCode = editor.wing === 'Ocean Wing' ? 'OW' : 'GW';
+                        const wingCode = getWingCode(editor.wing);
                         const linkedRoomsSummary = [];
 
                         geometry.forEach((line, index) => {
@@ -3362,7 +3581,7 @@
             const trimmed = input.trim();
             if (!trimmed) return;
 
-            const wingCode = wing === 'Ocean Wing' ? 'OW' : 'GW';
+            const wingCode = getWingCode(wing);
             const sideKey = (Number(seg.x1) + Number(seg.x2)) / 2 < 500 ? 'LEFT' : 'RIGHT';
             const sideLabel = sideKey === 'LEFT' ? 'Dãy Trái' : 'Dãy Phải';
 
@@ -3561,12 +3780,12 @@
             };
             const summary = calculateStats(proj.id);
             const overallPct = summary.totalTasks ? Math.round(summary.done * 100 / summary.totalTasks) : 0;
-            const wings = ['Ocean Wing', 'Garden Wing'];
+            const wings = getActiveWings();
             const groupHTML = wings.map(wing => {
                 if (state.staffWingFilter !== 'ALL' && state.staffWingFilter !== wing) return '';
                 const wingUnits = visibleUnits.filter(item => item.meta.wing === wing);
                 if (!wingUnits.length) return '';
-                const floorGroups = [1, 2, 3, 4].map(floor => {
+                const floorGroups = getActiveRoomFloors().map(floor => {
                     if (state.staffFloorFilter !== 'ALL' && String(floor) !== String(state.staffFloorFilter)) return '';
                     const items = wingUnits.filter(item => item.meta.floor === floor);
                     if (!items.length) return '';
@@ -3744,9 +3963,9 @@
             const targetSet = new Set(proj.targetRooms || []);
             const rebuiltLayouts = {};
 
-            ['Ocean Wing', 'Garden Wing'].forEach(wing => {
+            getActiveWings().forEach(wing => {
                 const wingPrefix = wing.replace(/\s+/g, '_');
-                [1, 2, 3, 4].forEach(floor => {
+                getActiveRoomFloors().forEach(floor => {
                     const floorRooms = (REAL_HOTEL_DATA[wing]?.[floor] || []).filter(r => targetSet.has(r));
                     rebuiltLayouts[`${wingPrefix}_T${floor}_CORRIDOR_left`] = floorRooms.filter(r => parseInt(r, 10) % 2 === 1);
                     rebuiltLayouts[`${wingPrefix}_T${floor}_CORRIDOR_right`] = floorRooms.filter(r => parseInt(r, 10) % 2 === 0);
@@ -4442,14 +4661,14 @@
                 lucide.createIcons();
                 return;
             }
-            const wingsToRender = state.staffWingFilter === 'ALL' ? ['Ocean Wing', 'Garden Wing'] : [state.staffWingFilter];
+            const wingsToRender = state.staffWingFilter === 'ALL' ? getActiveWings() : [state.staffWingFilter];
             container.className = isRailingProject
                 ? 'grid grid-cols-1 max-w-6xl mx-auto gap-6'
                 : (wingsToRender.length === 1 ? 'grid grid-cols-1 max-w-4xl mx-auto gap-5' : 'grid grid-cols-1 lg:grid-cols-2 gap-5');
 
             const floorsList = isRailingProject
-                ? (state.staffFloorFilter === 'ALL' ? [2, 3, 4] : [parseInt(state.staffFloorFilter)])
-                : (state.staffFloorFilter === 'ALL' ? [1, 2, 3, 4] : [parseInt(state.staffFloorFilter)]);
+                ? (state.staffFloorFilter === 'ALL' ? getActiveRailingFloors() : [parseInt(state.staffFloorFilter)])
+                : (state.staffFloorFilter === 'ALL' ? getActiveRoomFloors() : [parseInt(state.staffFloorFilter)]);
 
             const renderRoomTile = (roomId) => {
                 const task = state.tasks[`${proj.id}_${roomId}`];
@@ -4469,7 +4688,7 @@
             if (isRailingProject) {
                 const railingPages = [];
                 wingsToRender.forEach(wing => {
-                    const isOcean = wing === 'Ocean Wing';
+                    const isOcean = isFirstWing(wing);
                     const borderAccent = isOcean ? 'border-t-4 border-t-sky-500' : 'border-t-4 border-t-emerald-500';
                     const badgeCls = isOcean ? 'bg-sky-50 text-sky-700' : 'bg-emerald-50 text-emerald-700';
                     floorsList.forEach(floor => {
@@ -4524,7 +4743,7 @@
                 initializeRailingLayoutEditors(proj);
             } else {
                 container.innerHTML = wingsToRender.map(wing => {
-                const isOcean = wing === 'Ocean Wing';
+                const isOcean = isFirstWing(wing);
                 const borderAccent = isOcean ? 'border-t-4 border-t-sky-500' : 'border-t-4 border-t-emerald-500';
                 const badgeCls = isOcean ? 'bg-sky-50 text-sky-700' : 'bg-emerald-50 text-emerald-700';
 
@@ -4629,11 +4848,11 @@
         function renderInteractivePickerMap() {
             const container = document.getElementById('interactivePickerMap');
             const isRailing = state.projectFormTargetType === 'RAILING';
-            const wings = state.pickerWingFilter === 'ALL' ? ['Ocean Wing', 'Garden Wing'] : [state.pickerWingFilter];
+            const wings = state.pickerWingFilter === 'ALL' ? getActiveWings() : [state.pickerWingFilter];
             container.className = wings.length === 1 ? 'grid grid-cols-1 gap-4 max-h-[440px] overflow-y-auto p-1' : 'grid grid-cols-1 lg:grid-cols-2 gap-4 max-h-[440px] overflow-y-auto p-1';
 
             container.innerHTML = wings.map(wing => {
-                const floors = isRailing ? [2, 3, 4] : [1, 2, 3, 4];
+                const floors = isRailing ? getActiveRailingFloors() : getActiveRoomFloors();
                 const floorsHtml = floors.map(floor => {
                     if (isRailing) {
                         return `
@@ -4646,7 +4865,7 @@
                             </div>
                         `;
                     } else {
-                        const rooms = REAL_HOTEL_DATA[wing][floor];
+                        const rooms = REAL_HOTEL_DATA[wing]?.[floor] || [];
                         const oddLeft = rooms.filter(r => parseInt(r) % 2 === 1);
                         const evenRight = rooms.filter(r => parseInt(r) % 2 === 0);
                         const renderBtn = (rId) => {
@@ -5635,8 +5854,8 @@
             document.body.appendChild(exportHost);
 
             try {
-                for (const wing of ['Ocean Wing', 'Garden Wing']) {
-                    for (const floor of [2, 3, 4]) {
+                for (const wing of getActiveWings()) {
+                    for (const floor of getActiveRailingFloors()) {
                         const floorRailings = ALL_RAILINGS.filter(r => r.wing === wing && r.floor === floor && targetSet.has(r.id));
                         if (floorRailings.length === 0) continue;
                         exportHost.innerHTML = `
@@ -5734,15 +5953,15 @@
                 lx += 228;
             });
 
-            // 3. Draw Two Wings Side-by-Side (Ocean Wing Left, Garden Wing Right)
-            const wings = ['Ocean Wing', 'Garden Wing'];
-            const wingWidth = (W - 90) / 2; // 955px each
+            // 3. Draw Active Wings Side-by-Side
+            const wings = getActiveWings();
+            const wingWidth = wings.length === 1 ? (W - 60) : ((W - 90) / 2);
 
             wings.forEach((wing, wIdx) => {
                 const wx = 30 + wIdx * (wingWidth + 30);
                 const wy = 220;
                 const wh = H - 250;
-                const isOcean = wing === 'Ocean Wing';
+                const isOcean = isFirstWing(wing);
                 const accentCol = isOcean ? '#0284C7' : '#059669';
                 const accentBg = isOcean ? '#E0F2FE' : '#D1FAE5';
 
@@ -5770,8 +5989,8 @@
                     let fy = wy + 84;
                     const floorCardH = 345;
 
-                    [1, 2, 3, 4].forEach(floor => {
-                        const floorRooms = REAL_HOTEL_DATA[wing][floor] || [];
+                    getActiveRoomFloors().forEach(floor => {
+                        const floorRooms = REAL_HOTEL_DATA[wing]?.[floor] || [];
                         const oddLeft = floorRooms.filter(r => parseInt(r, 10) % 2 === 1);
                         const evenRight = floorRooms.filter(r => parseInt(r, 10) % 2 === 0);
 
@@ -6038,7 +6257,7 @@
             const margin = 8;
 
             wings.forEach((wing, wIdx) => {
-                const floors = isRailing ? [2, 3, 4] : [1, 2, 3, 4];
+                const floors = isRailing ? getActiveRailingFloors() : getActiveRoomFloors();
                 floors.forEach((floor, floorIdx) => {
                     const wx = 30 + wIdx * (cropWingWidth + 30);
                     const cropX = wx + 10;
@@ -6074,8 +6293,8 @@
             targetProjects.forEach(proj => {
                 const targetSet = new Set(proj.targetRooms || []);
                 if (proj.targetType === 'RAILING') {
-                    ['Ocean Wing', 'Garden Wing'].forEach(wing => {
-                        [2, 3, 4].forEach(floor => {
+                    getActiveWings().forEach(wing => {
+                        getActiveRailingFloors().forEach(floor => {
                             const floorRailings = ALL_RAILINGS.filter(r => r.wing === wing && r.floor === floor && targetSet.has(r.id));
                             if (!floorRailings.length) return;
                             pages.push(`
@@ -6088,9 +6307,9 @@
                         });
                     });
                 } else {
-                    ['Ocean Wing', 'Garden Wing'].forEach(wing => {
-                        [1, 2, 3, 4].forEach(floor => {
-                            const rooms = (REAL_HOTEL_DATA[wing][floor] || []).filter(id => targetSet.has(id));
+                    getActiveWings().forEach(wing => {
+                        getActiveRoomFloors().forEach(floor => {
+                            const rooms = (REAL_HOTEL_DATA[wing]?.[floor] || []).filter(id => targetSet.has(id));
                             if (!rooms.length) return;
                             const tiles = rooms.map(id => {
                                 const st = state.tasks[`${proj.id}_${id}`]?.status || 'Pending';
@@ -6113,7 +6332,109 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
 .pdf-page-heading { font-size: 16px; font-weight: 800; color: #111827; margin: 0 0 10px 2px; }
 .railing-layout-shell { width: 100% !important; min-width: 0 !important; overflow: visible !important; }
 .railing-layout-canvas { width: 100% !important; min-width: 0 !important; }
-</style></head><body>${pages.join('')}</body></html>`;
+</style></head><body>${pages.join('')}
+    <!-- PROPERTY STRUCTURE CONFIG MODAL (ROOMS, FLOORS, WINGS & RAILINGS) -->
+    <div id="propertyConfigModal" class="fixed inset-0 z-[115] bg-slate-900/55 backdrop-blur-sm hidden items-center justify-center p-3 sm:p-4" onclick="if(event.target===this) closePropertyConfigModal()">
+        <div class="w-full max-w-3xl max-h-[92vh] rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+            <div class="px-5 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-2xl bg-white/20 flex items-center justify-center">
+                        <i data-lucide="building-2" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-sm sm:text-base font-extrabold leading-tight">Cấu Hình Số Phòng, Tầng & Lan Can</h3>
+                            <span id="propCfgSiteBadge" class="px-2 py-0.5 rounded-full bg-white/20 text-[11px] font-bold">Furama</span>
+                        </div>
+                        <p class="text-[11px] text-blue-100 mt-0.5">Khai báo hoặc tinh chỉnh kiến trúc riêng cho cơ sở đang mở</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closePropertyConfigModal()" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center cursor-pointer">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+                <!-- Quick Generator -->
+                <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3.5 space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="text-xs font-extrabold uppercase tracking-wider text-indigo-700">1. Khai báo nhanh quy mô tòa nhà</span>
+                        <span id="propCfgSummaryBadge" class="px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-extrabold">2 khu • 4 tầng • 198 phòng</span>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Số khu / cánh</label>
+                            <select id="propCfgWingCount" onchange="onPropCfgWingCountChange()" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold">
+                                <option value="2">2 Khu</option>
+                                <option value="1">1 Khu</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Số tầng (1–12)</label>
+                            <input type="number" id="propCfgFloorCount" min="1" max="12" value="4" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Phòng / tầng / khu</label>
+                            <input type="number" id="propCfgRoomsPerFloor" min="1" max="60" value="20" class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold">
+                        </div>
+                        <div class="flex items-end">
+                            <button type="button" onclick="regeneratePropertyDraftAuto()" class="w-full px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer">
+                                Tạo mã phòng tự động
+                            </button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Tên Khu 1</label>
+                            <input type="text" id="propCfgWing1Name" value="Ocean Wing" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-bold">
+                        </div>
+                        <div id="propCfgWing2Wrap">
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Tên Khu 2</label>
+                            <input type="text" id="propCfgWing2Name" value="Garden Wing" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-bold">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Rooms per Floor -->
+                <div class="space-y-2">
+                    <span class="text-xs font-extrabold uppercase tracking-wider text-slate-700">2. Tinh chỉnh số phòng chi tiết từng tầng</span>
+                    <div id="propCfgFloorsEditor" class="space-y-3"></div>
+                </div>
+
+                <!-- Railing Configuration -->
+                <div class="rounded-2xl bg-amber-50/50 border border-amber-200/80 p-3.5 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-extrabold uppercase tracking-wider text-amber-800">3. Cấu hình hệ thống Lan Can</span>
+                        <label class="inline-flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
+                            <input type="checkbox" id="propCfgRailingEnabled" checked class="rounded text-blue-600 w-4 h-4">
+                            <span>Bật hạng mục Lan Can</span>
+                        </label>
+                    </div>
+                    <div>
+                        <span class="block text-[11px] font-bold text-slate-600 mb-1.5">Chọn các tầng có lan can:</span>
+                        <div id="propCfgRailingFloorsWrap" class="flex flex-wrap gap-1.5"></div>
+                    </div>
+                    <div class="flex flex-wrap gap-3 pt-1 border-t border-amber-200/60 text-xs font-semibold text-slate-700">
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="propCfgRailBalcony" checked class="rounded text-blue-600"> Ban công sau phòng</label>
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="propCfgRailEntrance" checked class="rounded text-blue-600"> Cửa chính / Lối vào</label>
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="propCfgRailCorridor" checked class="rounded text-blue-600"> Hành lang giữa phòng</label>
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="propCfgRailStairs" checked class="rounded text-blue-600"> Cầu thang đầu/giữa/cuối</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                <button type="button" onclick="restoreFuramaDefaultConfig()" class="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-bold cursor-pointer">
+                    Mặc định Furama (198P)
+                </button>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="closePropertyConfigModal()" class="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold cursor-pointer">Hủy</button>
+                    <button type="button" onclick="savePropertyConfigChanges()" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md cursor-pointer">Lưu Cấu Hình & Áp Dụng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body></html>`;
         }
 
         async function requestServerPDF(selectedIds, filename) {
@@ -7004,7 +7325,14 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
             closeRoomOpsQuickSearch,
             renderRoomOpsQuickSearch,
             selectRoomOpsSearchProject,
-            openRoomOpsSearchUnit
+            openRoomOpsSearchUnit,
+            openPropertyConfigModal,
+            closePropertyConfigModal,
+            onPropCfgWingCountChange,
+            regeneratePropertyDraftAuto,
+            updatePropCfgRowCount,
+            restoreFuramaDefaultConfig,
+            savePropertyConfigChanges
         });
 
         function syncStickyHeaderOffset() {
@@ -7014,11 +7342,243 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
             document.documentElement.style.setProperty('--app-header-height', `${headerHeight}px`);
         }
 
+
+        // ---------------------------------------------------------------------
+        // PROPERTY STRUCTURE CONFIG MODAL (ROOMS, FLOORS, WINGS & RAILINGS)
+        // ---------------------------------------------------------------------
+        let editingPropertyDraft = null;
+
+        function openPropertyConfigModal() {
+            editingPropertyDraft = normalizePropertyConfig(activePropertyConfig);
+            const modal = document.getElementById('propertyConfigModal');
+            if (!modal) return;
+
+            const siteBadge = document.getElementById('propCfgSiteBadge');
+            if (siteBadge) siteBadge.textContent = currentSiteName;
+
+            const wingCountSel = document.getElementById('propCfgWingCount');
+            const floorCountInp = document.getElementById('propCfgFloorCount');
+            const rpfInp = document.getElementById('propCfgRoomsPerFloor');
+            const w1Inp = document.getElementById('propCfgWing1Name');
+            const w2Inp = document.getElementById('propCfgWing2Name');
+            const w2Wrap = document.getElementById('propCfgWing2Wrap');
+            const railEn = document.getElementById('propCfgRailingEnabled');
+
+            const floors = getActiveRoomFloors();
+            const firstWing = editingPropertyDraft.wings[0];
+            const avgRpf = firstWing && floors.length ? Math.max(1, (firstWing.floors[floors[0]] || []).length) : 20;
+
+            if (wingCountSel) wingCountSel.value = String(editingPropertyDraft.wings.length);
+            if (floorCountInp) floorCountInp.value = String(floors.length);
+            if (rpfInp) rpfInp.value = String(avgRpf);
+            if (w1Inp) w1Inp.value = editingPropertyDraft.wings[0]?.name || 'Khu A';
+            if (w2Inp) w2Inp.value = editingPropertyDraft.wings[1]?.name || 'Khu B';
+            if (w2Wrap) w2Wrap.classList.toggle('hidden', editingPropertyDraft.wings.length < 2);
+
+            if (railEn) railEn.checked = editingPropertyDraft.railingEnabled !== false;
+            const cbBal = document.getElementById('propCfgRailBalcony');
+            const cbEnt = document.getElementById('propCfgRailEntrance');
+            const cbCor = document.getElementById('propCfgRailCorridor');
+            const cbStr = document.getElementById('propCfgRailStairs');
+            if (cbBal) cbBal.checked = editingPropertyDraft.railingIncludeBalcony !== false;
+            if (cbEnt) cbEnt.checked = editingPropertyDraft.railingIncludeEntrance !== false;
+            if (cbCor) cbCor.checked = editingPropertyDraft.railingIncludeCorridor !== false;
+            if (cbStr) cbStr.checked = editingPropertyDraft.railingIncludeStairs !== false;
+
+            renderPropertyConfigEditorGrid();
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            lucide.createIcons();
+        }
+
+        function closePropertyConfigModal() {
+            const modal = document.getElementById('propertyConfigModal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function onPropCfgWingCountChange() {
+            const wc = parseInt(document.getElementById('propCfgWingCount')?.value, 10) || 2;
+            document.getElementById('propCfgWing2Wrap')?.classList.toggle('hidden', wc < 2);
+            regeneratePropertyDraftAuto();
+        }
+
+        function regeneratePropertyDraftAuto() {
+            const wingCount = Math.max(1, Math.min(2, parseInt(document.getElementById('propCfgWingCount')?.value, 10) || 2));
+            const floorCount = Math.max(1, Math.min(12, parseInt(document.getElementById('propCfgFloorCount')?.value, 10) || 4));
+            const rpf = Math.max(1, Math.min(60, parseInt(document.getElementById('propCfgRoomsPerFloor')?.value, 10) || 20));
+            const w1Name = (document.getElementById('propCfgWing1Name')?.value || '').trim() || 'Khu A';
+            const w2Name = (document.getElementById('propCfgWing2Name')?.value || '').trim() || 'Khu B';
+
+            const wings = [];
+            for (let wIdx = 0; wIdx < wingCount; wIdx++) {
+                const wName = wIdx === 0 ? w1Name : (w2Name === w1Name ? `${w2Name} 2` : w2Name);
+                const wCode = wIdx === 0 ? (wName === 'Ocean Wing' ? 'OW' : 'W1') : (wName === 'Garden Wing' ? 'GW' : 'W2');
+                const floors = {};
+                for (let f = 1; f <= floorCount; f++) {
+                    const startSeq = wIdx === 0 ? 1 : (rpf + 1);
+                    const arr = [];
+                    for (let r = 0; r < rpf; r++) arr.push(`${f}${String(startSeq + r).padStart(2, '0')}`);
+                    floors[f] = arr;
+                }
+                wings.push({ name: wName, code: wCode, floors });
+            }
+
+            const prevRailFloors = new Set(editingPropertyDraft?.railingFloors || []);
+            const nextRailFloors = [];
+            for (let f = 1; f <= floorCount; f++) {
+                if (prevRailFloors.size ? prevRailFloors.has(f) : f >= 2) nextRailFloors.push(f);
+            }
+
+            editingPropertyDraft = {
+                wings,
+                railingEnabled: Boolean(document.getElementById('propCfgRailingEnabled')?.checked),
+                railingFloors: nextRailFloors,
+                railingIncludeBalcony: Boolean(document.getElementById('propCfgRailBalcony')?.checked),
+                railingIncludeEntrance: Boolean(document.getElementById('propCfgRailEntrance')?.checked),
+                railingIncludeCorridor: Boolean(document.getElementById('propCfgRailCorridor')?.checked),
+                railingIncludeStairs: Boolean(document.getElementById('propCfgRailStairs')?.checked)
+            };
+            renderPropertyConfigEditorGrid();
+        }
+
+        function renderPropertyConfigEditorGrid() {
+            if (!editingPropertyDraft) return;
+            const grid = document.getElementById('propCfgFloorsEditor');
+            const railFloorsWrap = document.getElementById('propCfgRailingFloorsWrap');
+            const summaryBadge = document.getElementById('propCfgSummaryBadge');
+
+            const floorSet = new Set();
+            editingPropertyDraft.wings.forEach(w => Object.keys(w.floors).forEach(k => floorSet.add(parseInt(k, 10))));
+            const floors = Array.from(floorSet).sort((a, b) => a - b);
+
+            let totalRooms = 0;
+            editingPropertyDraft.wings.forEach(w => {
+                floors.forEach(f => { totalRooms += (w.floors[f] || []).length; });
+            });
+
+            if (summaryBadge) {
+                summaryBadge.textContent = `${editingPropertyDraft.wings.length} khu • ${floors.length} tầng • ${totalRooms} phòng`;
+            }
+
+            if (railFloorsWrap) {
+                const railSet = new Set(editingPropertyDraft.railingFloors || []);
+                railFloorsWrap.innerHTML = floors.map(f => {
+                    const checked = railSet.has(f) ? 'checked' : '';
+                    return `<label class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-xs font-bold text-gray-700 cursor-pointer">
+                        <input type="checkbox" class="prop-cfg-rail-floor rounded text-blue-600" value="${f}" ${checked}>
+                        <span>Tầng ${f}</span>
+                    </label>`;
+                }).join('');
+            }
+
+            if (grid) {
+                grid.innerHTML = editingPropertyDraft.wings.map((w, wIdx) => {
+                    const accent = wIdx === 0 ? 'border-sky-200 bg-sky-50/40' : 'border-emerald-200 bg-emerald-50/40';
+                    const rows = floors.map(f => {
+                        const list = w.floors[f] || [];
+                        return `<div class="flex flex-col sm:flex-row sm:items-center gap-1.5 bg-white p-2 rounded-xl border border-gray-200/80">
+                            <div class="flex items-center justify-between sm:w-28 shrink-0">
+                                <span class="text-xs font-extrabold text-gray-800">Tầng ${f}</span>
+                                <span id="propCfgCount_${wIdx}_${f}" class="px-2 py-0.5 rounded-md bg-gray-100 text-[10px] font-bold text-gray-600">${list.length}P</span>
+                            </div>
+                            <input type="text" data-wing-idx="${wIdx}" data-floor="${f}" value="${list.join(', ')}"
+                                oninput="updatePropCfgRowCount(${wIdx}, ${f}, this.value)"
+                                placeholder="VD: ${f}01, ${f}02, ${f}03..."
+                                class="prop-cfg-room-input flex-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>`;
+                    }).join('');
+                    return `<div class="rounded-2xl border ${accent} p-3 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-extrabold text-gray-900">${w.name} (${w.code})</span>
+                            <span class="text-[10px] font-semibold text-gray-500">Nhập danh sách mã phòng, cách nhau bằng dấu phẩy</span>
+                        </div>
+                        <div class="space-y-1.5">${rows}</div>
+                    </div>`;
+                }).join('');
+            }
+        }
+
+        function updatePropCfgRowCount(wIdx, floor, val) {
+            const items = String(val || '').split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+            const badge = document.getElementById(`propCfgCount_${wIdx}_${floor}`);
+            if (badge) badge.textContent = `${items.length}P`;
+            if (editingPropertyDraft?.wings?.[wIdx]) {
+                editingPropertyDraft.wings[wIdx].floors[floor] = Array.from(new Set(items));
+            }
+        }
+
+        function restoreFuramaDefaultConfig() {
+            editingPropertyDraft = JSON.parse(JSON.stringify(FURAMA_DEFAULT_PROPERTY_CONFIG));
+            document.getElementById('propCfgWingCount').value = '2';
+            document.getElementById('propCfgFloorCount').value = '4';
+            document.getElementById('propCfgRoomsPerFloor').value = '26';
+            document.getElementById('propCfgWing1Name').value = 'Ocean Wing';
+            document.getElementById('propCfgWing2Name').value = 'Garden Wing';
+            document.getElementById('propCfgWing2Wrap')?.classList.remove('hidden');
+            document.getElementById('propCfgRailingEnabled').checked = true;
+            document.getElementById('propCfgRailBalcony').checked = true;
+            document.getElementById('propCfgRailEntrance').checked = true;
+            document.getElementById('propCfgRailCorridor').checked = true;
+            document.getElementById('propCfgRailStairs').checked = true;
+            renderPropertyConfigEditorGrid();
+            showToast('Đã nạp lại sơ đồ chuẩn Furama (198 phòng, 4 tầng). Bấm Lưu để áp dụng.');
+        }
+
+        async function savePropertyConfigChanges() {
+            if (!editingPropertyDraft) return;
+            const w1Name = (document.getElementById('propCfgWing1Name')?.value || '').trim() || 'Khu A';
+            const w2Name = (document.getElementById('propCfgWing2Name')?.value || '').trim() || 'Khu B';
+            if (editingPropertyDraft.wings[0]) editingPropertyDraft.wings[0].name = w1Name;
+            if (editingPropertyDraft.wings[1]) editingPropertyDraft.wings[1].name = (w2Name === w1Name ? `${w2Name} 2` : w2Name);
+
+            document.querySelectorAll('.prop-cfg-room-input').forEach(inp => {
+                const wIdx = parseInt(inp.dataset.wingIdx, 10);
+                const fl = parseInt(inp.dataset.floor, 10);
+                const list = String(inp.value || '').split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+                if (editingPropertyDraft.wings[wIdx]) {
+                    editingPropertyDraft.wings[wIdx].floors[fl] = Array.from(new Set(list));
+                }
+            });
+
+            const selectedRailFloors = Array.from(document.querySelectorAll('.prop-cfg-rail-floor:checked'))
+                .map(cb => parseInt(cb.value, 10))
+                .filter(n => !isNaN(n))
+                .sort((a, b) => a - b);
+
+            const finalCfg = normalizePropertyConfig({
+                wings: editingPropertyDraft.wings,
+                railingEnabled: Boolean(document.getElementById('propCfgRailingEnabled')?.checked),
+                railingFloors: selectedRailFloors,
+                railingIncludeBalcony: Boolean(document.getElementById('propCfgRailBalcony')?.checked),
+                railingIncludeEntrance: Boolean(document.getElementById('propCfgRailEntrance')?.checked),
+                railingIncludeCorridor: Boolean(document.getElementById('propCfgRailCorridor')?.checked),
+                railingIncludeStairs: Boolean(document.getElementById('propCfgRailStairs')?.checked),
+                updatedAt: Date.now()
+            });
+
+            try { localStorage.setItem(roLsKey('roomops_property_config_v1'), JSON.stringify(finalCfg)); } catch (e) {}
+            if (db) {
+                try {
+                    await setDoc(roDoc('site_settings', 'property_config'), finalCfg, { merge: true });
+                } catch (err) {
+                    console.warn('savePropertyConfigChanges Firestore notice:', err?.message || err);
+                }
+            }
+
+            applyPropertyConfig(finalCfg, { refreshUI: true });
+            closePropertyConfigModal();
+            showToast(`Đã lưu cấu hình ${currentSiteName}: ${ALL_ROOMS.length} phòng, ${ALL_RAILINGS.length} đoạn lan can!`);
+        }
+
         window.addEventListener('resize', syncStickyHeaderOffset);
 
         window.addEventListener('DOMContentLoaded', () => {
             syncStickyHeaderOffset();
+            syncPropertyUIControls();
             hydrateRoomOpsFromLocalCache();
+            loadPropertyConfigFromFirestore();
             populateStaffDropdowns();
             switchRole('staff');
             if (state.projects.some(p => p.targetType !== 'RAILING')) {
@@ -7054,26 +7614,28 @@ body { font-family: Inter, Arial, sans-serif; color: #1C1C1E; }
                 }
                 if (msg.type !== 'TASKMANA_SYNC_AUTH') return;
 
-                // 0. Đồng bộ cơ sở (Multi-Site) từ Taskmana
+                // 0. Đồng bộ cơ sở (Multi-Site) & sơ đồ Phòng/Tầng/Lan can từ Taskmana
                 if (msg.siteId) {
                     const nextSiteId = String(msg.siteId).trim() || DEFAULT_SITE_ID;
                     const nextSiteName = msg.siteName || nextSiteId;
                     const siteChanged = nextSiteId !== currentSiteId;
                     currentSiteId = nextSiteId;
                     currentSiteName = nextSiteName;
-                    const headerSub = document.querySelector('header p');
-                    if (headerSub) {
-                        headerSub.textContent = currentSiteId === DEFAULT_SITE_ID
-                            ? 'Furama • 198 Phòng & Hệ Thống Lan Can • Ocean & Garden Wing'
-                            : `${currentSiteName} • Dữ liệu độc lập (Sơ đồ phòng & lan can riêng sẽ cập nhật sau)`;
-                    }
                     if (siteChanged) {
                         state.projects = [];
                         state.tasks = {};
                         state.activityLogs = [];
                         state.staffSelectedProjectId = '';
+                        state.staffWingFilter = 'ALL';
+                        state.staffFloorFilter = 'ALL';
+                        state.pickerWingFilter = 'ALL';
                         hasCompletedInitialSync = false;
-                        initFirestoreSync();
+                        loadPropertyConfigFromFirestore(msg.siteConfig || null);
+                        initFirestoreRealtimeSync(true);
+                    } else if (msg.siteConfig && !loadPropertyConfigLocalCache()) {
+                        loadPropertyConfigFromFirestore(msg.siteConfig);
+                    } else {
+                        syncPropertyUIControls();
                     }
                 }
 
